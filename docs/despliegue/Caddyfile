@@ -14,6 +14,21 @@
 # Las dos reescrituras son obligatorias: sin ellas /api/upload y /d/<token> caen en
 # /index.php y la API responde otra cosa.
 
+# Timeouts: los del upstream se fijan por sitio (aquí abajo); los del servidor HTTP
+# (lectura del cuerpo del cliente) son globales por listener y van en el bloque de
+# opciones del Caddyfile del host:
+#
+#   {
+#       servers {
+#           timeouts {
+#               read_body 10m
+#               idle 10m
+#           }
+#       }
+#   }
+#
+# Sin eso, una subida lenta por un enlace malo puede cortarse a mitad del cuerpo.
+
 arb-a.servicios.care {
 	root * /var/www/arb-a/public
 	encode gzip
@@ -27,7 +42,12 @@ arb-a.servicios.care {
 	@descarga path_regexp descarga ^/d/([a-f0-9]{64})/?$
 	rewrite @descarga /d.php?t={re.descarga.1}
 
-	php_fastcgi app-arb-a:9000
+	# 300s de lectura/escritura hacia php-fpm: una subida de 64 MB con SMTP a varios
+	# destinatarios puede tardar; el default es sin timeout, pero se fija explícito.
+	php_fastcgi app-arb-a:9000 {
+		read_timeout 300s
+		write_timeout 300s
+	}
 	file_server
 }
 
