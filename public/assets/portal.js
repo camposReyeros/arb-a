@@ -59,10 +59,13 @@
     }));
   }
 
-  // Panel: confirmar antes de purgar.
+  // Panel: confirmar antes de una acción destructiva. Solo la purga exige
+  // marcar archivos; otros formularios (p. ej. regenerar la API-Key) no.
   document.querySelectorAll('form[data-confirmar]').forEach((form) => {
+    const tieneSeleccion = form.querySelector('input[name="ids[]"]') !== null;
+
     form.addEventListener('submit', (evento) => {
-      if (form.querySelectorAll('input[name="ids[]"]:checked').length === 0) {
+      if (tieneSeleccion && form.querySelectorAll('input[name="ids[]"]:checked').length === 0) {
         evento.preventDefault();
         window.alert('Selecciona al menos un archivo.');
         return;

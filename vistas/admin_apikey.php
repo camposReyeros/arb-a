@@ -17,8 +17,8 @@ function htmlApikey(?string $apikeyNueva, array $apikey): void
     };
     ?>
 <section class="seccion">
-  <h2>API-Key</h2>
-  <p class="sub">Una sola clave para la API de carga. Se guarda como hash: no se puede releer, solo regenerar.</p>
+  <h2>API-Key de carga</h2>
+  <p class="sub">Una sola clave para <strong>subir</strong> archivos (<code>POST /api/upload</code>). No afecta a los links de descarga, que usan su propio token. Se guarda como hash: no se puede releer, solo regenerar.</p>
   <?php if ($apikeyNueva !== null): ?>
   <div class="tarjeta clave-nueva">
     <p><strong>API-Key nueva</strong> — se muestra solo esta vez:</p>
@@ -45,7 +45,7 @@ function htmlApikey(?string $apikeyNueva, array $apikey): void
     <?= campoCsrf() ?>
     <input type="hidden" name="accion" value="regenerar_apikey">
     <div class="acciones-panel">
-      <button type="submit" class="boton boton-peligro">Regenerar API-Key</button>
+      <button type="submit" class="boton boton-peligro">Regenerar clave de carga</button>
     </div>
   </form>
 </section>
