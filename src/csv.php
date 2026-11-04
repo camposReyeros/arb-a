@@ -133,6 +133,23 @@ function detectarSeparador(string $linea): string
     return $elegido;
 }
 
+/**
+ * Dominio autorizado a recibir avisos (`correo.dominios`).
+ * Comparación exacta y sin subdominios; lista vacía = nadie (no es un relay abierto).
+ */
+function dominioPermitido(string $correo): bool
+{
+    $arroba = strrpos($correo, '@');
+    if ($arroba === false) {
+        return false;
+    }
+
+    $dominio = strtolower(substr($correo, $arroba + 1));
+    $permitidos = array_map('strtolower', (array) (config()['correo']['dominios'] ?? []));
+
+    return $permitidos !== [] && in_array($dominio, $permitidos, true);
+}
+
 /** `X-Correos`: lista separada por coma o punto y coma. Deduplica y valida. */
 function parseDestinatarios(string $cabecera): array
 {
@@ -148,20 +165,23 @@ function parseDestinatarios(string $cabecera): array
         }
         if (!correoValido($correo)) {
             // Se dice la posición, no el valor: el error no devuelve lo que mandó el cliente.
-            return ['ok' => false, 'correos' => [], 'error' => 'X-Correos trae un correo inválido (posición ' . $posicion . ')'];
+            return ['ok' => false, 'codigo' => 'destinatarios_invalidos', 'correos' => [], 'error' => 'X-Correos trae un correo inválido (posición ' . $posicion . ')'];
+        }
+        if (!dominioPermitido($correo)) {
+            return ['ok' => false, 'codigo' => 'destinatario_no_permitido', 'correos' => [], 'error' => 'dominio no autorizado (posición ' . $posicion . ')'];
         }
         $correos[$correo] = true;
     }
 
     $lista = array_keys($correos);
     if ($lista === []) {
-        return ['ok' => false, 'correos' => [], 'error' => 'X-Correos no trae destinatarios'];
+        return ['ok' => false, 'codigo' => 'destinatarios_invalidos', 'correos' => [], 'error' => 'X-Correos no trae destinatarios'];
     }
     if (count($lista) > ARB_A_MAX_DESTINATARIOS) {
-        return ['ok' => false, 'correos' => [], 'error' => 'demasiados destinatarios (máximo ' . ARB_A_MAX_DESTINATARIOS . ')'];
+        return ['ok' => false, 'codigo' => 'destinatarios_invalidos', 'correos' => [], 'error' => 'demasiados destinatarios (máximo ' . ARB_A_MAX_DESTINATARIOS . ')'];
     }
 
-    return ['ok' => true, 'correos' => $lista, 'error' => null];
+    return ['ok' => true, 'codigo' => null, 'correos' => $lista, 'error' => null];
 }
 
 /** `X-Plazas`: informativas. Se normalizan a MAYÚSCULAS y se deduplican. */

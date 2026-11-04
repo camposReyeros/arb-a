@@ -85,6 +85,9 @@ foreach (ARB_A_ERRORES as $codigo => [$estado, $mensaje]) {
       CSV sin comprimir, máximo 64 MB por defecto (configurable en el servidor).</p>
     <p><strong>Destinatarios</strong> <span class="snippet">X-Correos</span> separados por coma o punto y coma, máximo 50.
       Son la regla de acceso: cada uno ve el archivo en el portal.</p>
+    <p><strong>Dominios autorizados</strong> solo <span class="snippet">camposreyeros.com</span>,
+      <span class="snippet">transportesvata.com</span>, <span class="snippet">comex.care</span> y
+      <span class="snippet">comexpintacolor.com</span>. Otro dominio se rechaza sin guardar nada.</p>
     <p><strong>Plazas</strong> <span class="snippet">X-Plazas</span> informativas, máximo 20. Nunca restringen el acceso.</p>
   </div>
 

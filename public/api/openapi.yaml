@@ -188,6 +188,8 @@ components:
             - servicio_no_disponible
             - apikey_invalida
             - destinatarios_invalidos
+            - destinatario_no_permitido
+            - cuota_excedida
             - falta_archivo
             - archivo_vacio
             - archivo_muy_grande

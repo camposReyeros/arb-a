@@ -23,6 +23,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `src/csv.php` | Validación del CSV en una pasada (`fgetcsv`), nombre en MAYÚSCULAS, cabeceras `X-Correos`/`X-Plazas`. |
 | `src/errores.php` | Catálogo `codigo → [status, mensaje]` de la API. Es el contrato con el cliente. |
 | `src/limite.php` | Límite de cargas por IP: ventana móvil de una hora sobre `limite_carga`. |
+| `src/cuota.php` | Cuota global de disco (2 GB por defecto) sobre la suma de `.gz` vivos. |
 | `public/api/index.php` | Documentación viva en `/api`; la tabla de errores sale de `src/errores.php`. |
 | `public/api/openapi.yaml` | Contrato OpenAPI 3.1, servido tal cual. |
 | `docs/api/upload.md` | Documentación de referencia (estilo abuseipdb) para quien integra. |
@@ -52,6 +53,12 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   gigante o una comilla sin cerrar. El muestreo de binario revisa los primeros y los últimos
   64 KB (riesgo aceptado: un polyglot con relleno de texto en ambos extremos se guarda igual,
   pero se entrega como `application/gzip` + `attachment` + `nosniff`).
+- **Solo se avisa a dominios autorizados** (`correo.dominios`): `camposreyeros.com`,
+  `transportesvata.com`, `comex.care`, `comexpintacolor.com`. Comparación exacta, sin
+  subdominios. Lista vacía = nadie. La API no es un relay abierto.
+- **El disco tiene cuota global** (`archivos.cuota_bytes`, 2 GB): suma de `bytes_gz` de los
+  archivos vivos, ni vencidos ni borrados. Se revisa antes de comprimir y se confirma dentro de
+  la transacción con un lock global. Se libera sola al vencer los archivos.
 - **Cada IP tiene 100 cargas aceptadas por hora** (ventana móvil, `limite_carga`). Se revisa
   antes de trabajar (barato) y se vuelve a revisar **dentro de la transacción del guardado**,
   con un lock por IP: dos peticiones simultáneas no pueden colarse contando a la vez. La cuota

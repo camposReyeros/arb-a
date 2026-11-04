@@ -5,6 +5,7 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/bd.php';
 require_once __DIR__ . '/csv.php';
 require_once __DIR__ . '/limite.php';
+require_once __DIR__ . '/cuota.php';
 require_once __DIR__ . '/correo.php';
 
 /**
@@ -42,7 +43,8 @@ function guardarSubida(array $archivo, array $destinatarios, array $plazas, ?str
         throw new ErrorDeCarga('archivo_muy_grande', 'máximo ' . $maximo . ' bytes');
     }
 
-    // Primero el límite (barato) y luego la validación del contenido (una lectura).
+    // Primero lo barato: cuota de disco y de cargas. Después se lee el contenido.
+    verificarCuota();
     verificarLimiteCarga($ip);
     $resumen = analizarCsv($tmp);
 
@@ -63,6 +65,9 @@ function guardarSubida(array $archivo, array $destinatarios, array $plazas, ?str
     $pdo = bd();
     $pdo->beginTransaction();
     try {
+        // Con el lock global: dos subidas a la vez no pueden rebasar la cuota de disco.
+        reservarCuota($bytesGz);
+
         $stmt = $pdo->prepare(
             "insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, token_hash, plazas, ip_origen, expira_en)
              values (:n, :r, :b, :g, :s, :t,

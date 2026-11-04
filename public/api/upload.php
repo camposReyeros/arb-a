@@ -51,7 +51,10 @@ try {
 
     $destinatarios = parseDestinatarios((string) ($_SERVER['HTTP_X_CORREOS'] ?? ''));
     if (!$destinatarios['ok']) {
-        throw new ErrorDeCarga('destinatarios_invalidos', (string) $destinatarios['error']);
+        throw new ErrorDeCarga(
+            (string) ($destinatarios['codigo'] ?? 'destinatarios_invalidos'),
+            (string) $destinatarios['error']
+        );
     }
 
     $archivo = $_FILES['archivo'] ?? null;

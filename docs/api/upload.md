@@ -31,11 +31,22 @@ Sube un CSV y dispara los correos.
 | Cabecera | Obligatoria | Ejemplo | Descripción |
 |---|---|---|---|
 | `X-Api-Key` | sí | `k3y...` | Clave del servicio |
-| `X-Correos` | sí | `uno@x.com;dos@x.com` | Destinatarios del link. Separados por coma o punto y coma. Máximo 50; se normalizan a minúsculas y se deduplican |
+| `X-Correos` | sí | `uno@comex.care;dos@transportesvata.com` | Destinatarios del link. Separados por coma o punto y coma. Máximo 50; se normalizan a minúsculas y se deduplican. **Solo se aceptan dominios autorizados** (ver abajo) |
 | `X-Plazas` | no | `PLAZA1,PLAZA2` | Agrupador **informativo**. Máximo 20. Se normalizan a MAYÚSCULAS (`A-Z`, `0-9`, `_`, `-`) |
 
 `X-Plazas` nunca restringe quién puede descargar: el acceso es por coincidencia de correo con
 `X-Correos`.
+
+### Dominios autorizados
+
+Solo se avisa a direcciones de estos dominios (comparación exacta, sin subdominios, sin
+distinción de mayúsculas):
+
+`camposreyeros.com` · `transportesvata.com` · `comex.care` · `comexpintacolor.com`
+
+Una dirección de otro dominio devuelve `422` con `codigo: "destinatario_no_permitido"` y **no se
+guarda el archivo**. La lista se ajusta en el servidor (`ARB_A_CORREOS_PERMITIDOS`); una lista
+vacía significa que no se acepta ningún destinatario.
 
 ### Cuerpo
 
@@ -140,6 +151,8 @@ cliente debe comparar `codigo`; el texto puede cambiar.
 | `servicio_no_disponible` | 503 | El servicio no tiene clave configurada |
 | `apikey_invalida` | 401 | Falta `X-Api-Key` o no coincide |
 | `destinatarios_invalidos` | 422 | `X-Correos` vacía, con un correo inválido o con más de 50 |
+| `destinatario_no_permitido` | 422 | `X-Correos` trae una dirección de un dominio no autorizado |
+| `cuota_excedida` | 507 | El total de archivos vivos ya ocupa la cuota de disco del servidor. Se libera al vencer los archivos |
 | `falta_archivo` | 422 | No llegó el campo `archivo`, o la subida se interrumpió |
 | `archivo_vacio` | 422 | El archivo pesa 0 bytes |
 | `archivo_muy_grande` | 413 | Excede el máximo configurado (64 MB por defecto) o el límite del servidor |

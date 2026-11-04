@@ -51,10 +51,17 @@ ok(nombreVisible('nomina 2026.csv') === 'NOMINA_2026.CSV', 'espacios a guion baj
 ok(nombreVisible('') === 'ARCHIVO.CSV', 'nombre vacío tiene default');
 ok(nombreVisible(str_repeat('a', 300) . '.csv') === str_repeat('A', 120) . '.CSV', 'nombre acotado');
 
-$d = parseDestinatarios('uno@x.com, DOS@x.com ; dos@x.com');
-ok($d['ok'] && $d['correos'] === ['uno@x.com', 'dos@x.com'], 'destinatarios normalizados y sin duplicados');
+$d = parseDestinatarios('uno@comex.care, DOS@COMEX.CARE ; dos@transportesvata.com');
+ok($d['ok'] && $d['correos'] === ['uno@comex.care', 'dos@comex.care', 'dos@transportesvata.com'], 'destinatarios normalizados a minúsculas');
+ok(count(parseDestinatarios('uno@comex.care, UNO@COMEX.CARE')['correos']) === 1, 'el mismo correo se deduplica');
 ok(!parseDestinatarios('no-es-correo')['ok'], 'correo inválido se rechaza');
 ok(!parseDestinatarios('')['ok'], 'lista vacía se rechaza');
+
+$ajeno = parseDestinatarios('uno@gmail.com');
+ok(!$ajeno['ok'] && $ajeno['codigo'] === 'destinatario_no_permitido', 'dominio no autorizado se rechaza');
+ok(!parseDestinatarios('uno@sub.comex.care')['ok'], 'subdominio no autorizado se rechaza');
+ok(parseDestinatarios('UNO@Comex.Care')['ok'], 'el dominio se compara sin distinguir mayúsculas');
+ok(parseDestinatarios('a@camposreyeros.com,b@comexpintacolor.com')['ok'], 'todos los dominios de la lista pasan');
 
 $p = parsePlazas('plaza1, Plaza2, plaza1, <script>');
 ok($p === ['PLAZA1', 'PLAZA2', 'SCRIPT'], 'plazas en mayúsculas, sin duplicados ni símbolos');

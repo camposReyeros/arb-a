@@ -24,6 +24,8 @@ return [
         'dir' => getenv('ARB_A_DIR') ?: '/var/lib/arb-a/archivos',
         // Vigencia del archivo y de su link.
         'dias' => (int) (getenv('ARB_A_DIAS') ?: 90),
+        // Tope de disco para el total de archivos vivos (comprimidos). 0 = sin tope.
+        'cuota_bytes' => (int) (getenv('ARB_A_CUOTA_BYTES') ?: 2 * 1024 ** 3),
     ],
     'correo' => [
         'host' => getenv('ARB_A_SMTP_HOST') ?: 'smtp.servicios.care',
@@ -33,6 +35,12 @@ return [
         'de' => getenv('ARB_A_SMTP_FROM') ?: 'noreply-arb-a@servicios.care',
         'nombre_de' => 'ARB-A',
         'timeout' => (int) (getenv('ARB_A_SMTP_TIMEOUT') ?: 15),
+        // Solo se avisa a estos dominios: la API no es un relay abierto.
+        'dominios' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', getenv('ARB_A_CORREOS_PERMITIDOS')
+                ?: 'camposreyeros.com,transportesvata.com,comex.care,comexpintacolor.com')
+        ))),
     ],
     'url_base' => getenv('ARB_A_URL_BASE') ?: 'https://arb-a.servicios.care',
     // IPs del proxy de confianza (Caddy) que pueden mandar X-Forwarded-For/Proto.
