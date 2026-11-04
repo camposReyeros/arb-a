@@ -192,6 +192,10 @@ BD solo quede el sha256 y que la bitácora registre el cambio. Restaura la fila 
 - **`ARB_A_PROXY_IPS`** = IP de caddy en `redweb`. Si caddy se recrea puede cambiar:
   revisar, actualizar `.env` y recrear `app-arb-a`.
 - **SMTP:** `mail.servicios.care:465` (SSL implícito), cuenta `noreply-arb-a@servicios.care`.
+
+> El repo es **público** (`camposReyeros/arb-a`): `.env`, `config.php` y cualquier credencial
+> real quedan fuera de git; los ejemplos solo llevan `cambiame`. Antes de commitear, revisar que
+> no se cuele una clave, un correo personal o una IP interna.
   El default del código (`smtp.servicios.care:587`) es solo eso, un default.
 - **Cron:** `/etc/cron.d/arb-a` corre a las 03:23
   `docker exec app-arb-a php /var/www/arb-a/bin/limpiar.php >> /var/log/arb-a-cron.log 2>&1`.
