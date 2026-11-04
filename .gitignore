@@ -1,0 +1,9 @@
+# local
+config.php
+.env
+var/
+archivos/
+
+# runtime de despliegue
+app/
+db/data/
