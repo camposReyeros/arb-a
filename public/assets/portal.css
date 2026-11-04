@@ -1,5 +1,22 @@
 /* ARB-A · portal. Tokens de "Corporate Precision" (Material 3, claro). */
 
+/* Fuentes auto-hospedadas (SIL Open Font License 1.1, Google Fonts).
+   No se cargan de terceros: la CSP es `default-src 'self'`. */
+@font-face {
+  font-family: "Aguafina Script";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/aguafina-script.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Edu TAS Beginner";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/assets/fonts/edu-tas-beginner.woff2") format("woff2");
+}
+
 :root {
   --primario: #0b57d0;
   --primario-hover: #0842a0;
@@ -25,6 +42,19 @@ body {
   font-size: 14px;
   line-height: 1.45;
 }
+
+/* Portal (login, mis archivos, admin solo conserva la tipografía del sistema). */
+body.portal {
+  font-family: "Edu TAS Beginner", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+}
+body.portal h1,
+body.portal .marca {
+  font-family: "Aguafina Script", "Edu TAS Beginner", cursive;
+  font-weight: 400;
+}
+body.portal .marca { font-size: 26px; letter-spacing: .01em; }
+body.portal h1 { font-size: 30px; }
 
 a { color: var(--primario); text-decoration: none; }
 a:hover { color: var(--primario-hover); }

@@ -64,7 +64,7 @@ $uso = $salud['bytes'];
 $cuota = $salud['cuota'];
 $porcentaje = $cuota > 0 ? min(100, (int) round($uso * 100 / $cuota)) : 0;
 
-htmlInicio('Administración', $usuario);
+htmlInicio('Administración', $usuario, false);
 ?>
 <h1>Administración</h1>
 <p class="sub">Salud del sistema, uso de los enlaces y purga manual de archivos.</p>

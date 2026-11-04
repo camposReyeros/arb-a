@@ -68,7 +68,7 @@ function tamanoLegible(int $bytes): string
 }
 
 /** Cabecera y apertura del `<main>`. */
-function htmlInicio(string $titulo, ?array $usuario = null): void
+function htmlInicio(string $titulo, ?array $usuario = null, bool $fuentePortal = true): void
 {
     $nombre = (string) ($usuario['nombre'] ?? $usuario['correo'] ?? '');
     ?>
@@ -80,7 +80,7 @@ function htmlInicio(string $titulo, ?array $usuario = null): void
 <title><?= e($titulo) ?> · ARB-A</title>
 <link rel="stylesheet" href="/assets/portal.css">
 </head>
-<body>
+<body<?= $fuentePortal ? ' class="portal"' : '' ?>>
 <header class="barra">
   <a class="marca" href="/archivos.php">ARB-A</a>
   <?php if ($usuario !== null): ?>
