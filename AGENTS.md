@@ -29,7 +29,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `src/cuota.php` | Cuota global de disco (2 GB por defecto) sobre la suma de `bytes_gz` (espacio real en disco). |
 | `public/api/index.php` | Documentación viva en `/api`; la tabla de errores sale de `src/errores.php`. |
 | `public/api/openapi.yaml` | Contrato OpenAPI 3.1, servido tal cual. |
-| `public/assets/fonts/` | Fuentes auto-hospedadas (Aguafina Script y Edu TAS Beginner, SIL OFL 1.1). Sin CDN: la CSP es `default-src 'self'`. |
+| `public/assets/fonts/` | Fuentes auto-hospedadas (Sora 600 para marca/títulos y Edu TAS Beginner para el texto, SIL OFL 1.1). Sin CDN: la CSP es `default-src 'self'`. |
 | `docs/api/upload.md` | Documentación de referencia (estilo abuseipdb) para quien integra. |
 | `vistas/layout.php` | Helpers de presentación: `htmlInicio`/`htmlFin`, fechas, tamaños. |
 | `vistas/correo_aviso.php` | Plantilla del correo de aviso: HTML con estilo en línea, sin JS ni recursos externos. |
