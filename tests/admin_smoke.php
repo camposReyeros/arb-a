@@ -98,6 +98,18 @@ ok(count($porDestinatario) === 2, 'destinatarios: dos filas');
 $nunca = estadisticasDestinatarios(['nombre' => $nombre, 'nunca' => true]);
 ok(count($nunca) === 1 && (string) ($nunca[0]['correo'] ?? '') === $sinAcceso, 'destinatarios: filtro nunca abierto');
 
+// Buscador del panel: los correos viajan en minúsculas para filtrar en el cliente.
+$correosFila = (string) ($fila['correos'] ?? '');
+ok(
+    str_contains($correosFila, mb_strtolower($correo)) && str_contains($correosFila, mb_strtolower($sinAcceso)),
+    'estadística: la fila trae los correos para el buscador'
+);
+ok(count(idsRecientes($porDestinatario, 'archivo_id')) === 1, 'recientes: cuenta archivos, no filas de correo');
+
+$sieteFilas = [['id' => 1], ['id' => 1], ['id' => 2], ['id' => 3], ['id' => 4], ['id' => 5], ['id' => 6]];
+$top = idsRecientes($sieteFilas);
+ok(count($top) === 5 && !isset($top[6]), 'recientes: tope de cinco archivos distintos');
+
 $purgables = archivosPurgables(['nombre' => $nombre, 'estado' => 'vigente']);
 ok(count($purgables) === 1 && (int) $purgables[0]['id'] === $archivoId, 'purga: lista el archivo vigente');
 ok(archivosPurgables(['nombre' => $nombre, 'estado' => 'expirado']) === [], 'purga: el filtro vencido no lo incluye');

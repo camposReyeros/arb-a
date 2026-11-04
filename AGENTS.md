@@ -38,8 +38,9 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `public/salir.php` | Cierre de sesión: solo POST con CSRF. |
 | `public/archivos.php` | "Mis archivos": tabla con buscador y filtro de vigencia. |
 | `public/archivo.php` | Descarga desde el portal; valida sesión y pertenencia (`via = 'ui'`). |
-| `public/admin.php` | Panel de administración: salud, estadísticas de uso y purga manual. Solo `admin`. |
-| `src/admin.php` | Consultas del panel: salud, uso por archivo/destinatario y purga. |
+| `public/admin.php` | Panel de administración en pestañas (`?tab=`): salud, uso por archivo, accesos por destinatario y purga manual. Solo `admin`. |
+| `src/admin.php` | Consultas del panel: salud, uso por archivo/destinatario, archivos recientes y purga. |
+| `vistas/admin_tablas.php` | Tablas de uso del panel: filas marcadas con `data-buscar`/`data-reciente` para el buscador. |
 | `public/assets/portal.css` | Tokens de Corporate Precision. Sin fuentes ni CDN externos. |
 | `public/assets/portal.js` | Filtro de la tabla. Sin dependencias. |
 | `db/schema.sql` | Esquema PostgreSQL idempotente. |
@@ -108,9 +109,13 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   `archivo_destinatario`; si no, responde 404. Registra el acceso con `via = 'ui'`.
 - **Toda acción con efecto va por POST con CSRF**; la consulta es GET. `salir.php` no acepta GET.
 - **El panel es solo para `admin`** (`requerirAdmin()`): salud (archivos activos, disco vs cuota,
-  correos de 7 días, accesos de 30 días), uso por archivo y por destinatario, y purga manual.
-  La purga borra el `.gz` (confinado a `ARB_A_DIR`), marca `borrado_en` y deja rastro en
-  `bitacora`; si el fichero ya no existe, también lo marca para que el cron no lo reintente.
+  correos de 7 días, accesos de 30 días) y tres pestañas por navegación (`?tab=archivos`,
+  `destinatarios`, `purga`). Cada carga ejecuta solo la consulta de la pestaña activa; los
+  filtros viajan en la URL de cada pestaña. Dentro de las pestañas de uso se muestran los 5
+  archivos más recientes y el buscador filtra al vuelo, por nombre o correo, sobre las filas ya
+  cargadas (revela las antiguas sin recargar). La purga borra el `.gz` (confinado a `ARB_A_DIR`),
+  marca `borrado_en` y deja rastro en `bitacora`; si el fichero ya no existe, también lo marca
+  para que el cron no lo reintente.
 - **El link directo es anónimo:** sus accesos se cuentan por archivo, nunca por persona. Los
   accesos de la UI se atribuyen al correo de la sesión.
 
@@ -229,8 +234,10 @@ MIME/nombre de descarga por tipo.
 
 ## Deuda conocida
 
-- El panel limita a 200 archivos y 300 destinatarios sin paginación: "seleccionar todos" cubre
-  solo lo visible. El cron sigue purgando los vencidos, así que no se acumulan.
+- El panel limita a 200 archivos y 300 destinatarios sin paginación: el buscador revela solo lo
+  ya cargado y "seleccionar todos" cubre solo lo visible. El cron sigue purgando los vencidos,
+  así que no se acumulan. Un archivo con cientos de correos puede truncar sus filas de
+  destinatario en el límite de 300.
 - La purga manual no es transaccional (select → `unlink` → update): un doble POST concurrente
   puede duplicar la entrada de bitácora, pero nunca borra de más.
 

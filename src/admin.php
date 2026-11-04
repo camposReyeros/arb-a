@@ -73,10 +73,34 @@ function condicionesAdmin(array $filtros): array
         'nombre' => $nombre,
         'nombre_like' => '%' . $escapa($nombre) . '%',
         'correo' => $correo,
-        'correo_like' => '%' . $escapa($correo) . '%',
+        'correo_like' => '%' . $escapa(mb_strtolower($correo)) . '%',
     ];
 
     return [implode(' and ', $condiciones), $parametros];
+}
+
+/**
+ * IDs de los archivos más recientes de un resultado ya ordenado por `subido_en`.
+ * En la tabla de destinatarios un archivo repite fila por correo: se cuentan archivos.
+ *
+ * @param array<int, array<string, mixed>> $filas
+ * @return array<int, true>
+ */
+function idsRecientes(array $filas, string $campo = 'id', int $limite = 5): array
+{
+    $recientes = [];
+    foreach ($filas as $fila) {
+        $id = (int) ($fila[$campo] ?? 0);
+        if ($id <= 0 || isset($recientes[$id])) {
+            continue;
+        }
+        $recientes[$id] = true;
+        if (count($recientes) >= $limite) {
+            break;
+        }
+    }
+
+    return $recientes;
 }
 
 /** Tabla por archivo: UI y directo son comparables porque el link es uno por archivo. */
@@ -88,6 +112,9 @@ function estadisticasArchivos(array $filtros): array
     $sql = "select a.id, a.nombre, a.subido_en, a.expira_en,
                    (select count(*) from archivo_destinatario d
                      where d.archivo_id = a.id) as destinatarios,
+                   (select coalesce(string_agg(lower(x.correo), ' '), '')
+                      from archivo_destinatario x
+                     where x.archivo_id = a.id) as correos,
                    count(e.id) filter (where e.via = 'ui') as ui,
                    count(e.id) filter (where e.via = 'directo') as directo,
                    max(e.creado_en) as ultimo

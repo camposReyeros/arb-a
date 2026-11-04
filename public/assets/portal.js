@@ -42,6 +42,45 @@
     }
   }
 
+  // Panel: cada tabla arranca con los 5 archivos más recientes; el buscador filtra
+  // al vuelo por nombre o correo sobre lo ya cargado y va revelando el resto.
+  const montarBuscador = (idBuscar, idFilas, idVacio) => {
+    const input = document.getElementById(idBuscar);
+    const tbody = document.getElementById(idFilas);
+    const vacio = document.getElementById(idVacio);
+
+    if (!input || !tbody) {
+      return;
+    }
+
+    const filas = Array.from(tbody.querySelectorAll('tr'));
+
+    const aplicar = () => {
+      const q = input.value.trim().toLowerCase();
+      let visibles = 0;
+
+      filas.forEach((tr) => {
+        const texto = tr.dataset.buscar || '';
+        const mostrar = q === '' ? tr.dataset.reciente === '1' : texto.includes(q);
+
+        tr.hidden = !mostrar;
+        if (mostrar) {
+          visibles += 1;
+        }
+      });
+
+      if (vacio) {
+        vacio.hidden = visibles !== 0;
+      }
+    };
+
+    input.addEventListener('input', aplicar);
+    aplicar();
+  };
+
+  montarBuscador('buscar-archivos', 'filas-archivos', 'sin-resultados-archivos');
+  montarBuscador('buscar-destinatarios', 'filas-destinatarios', 'sin-resultados-destinatarios');
+
   // Panel: seleccionar todos los archivos de la purga.
   const todos = document.getElementById('seleccionar-todos');
   if (todos) {

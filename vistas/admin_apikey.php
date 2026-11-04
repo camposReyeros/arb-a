@@ -7,7 +7,7 @@ declare(strict_types=1);
  */
 
 /** @param array{origen:string, creada_en:?string, creada_por:?string} $apikey */
-function htmlApikey(?string $apikeyNueva, array $apikey): void
+function htmlApikey(?string $apikeyNueva, array $apikey, string $tab = 'archivos'): void
 {
     $rotulo = match ($apikey['origen']) {
         'bd' => 'Base de datos',
@@ -44,6 +44,7 @@ function htmlApikey(?string $apikeyNueva, array $apikey): void
   <form method="post" action="/admin.php" data-confirmar="La clave actual dejará de funcionar de inmediato. ¿Regenerar la API-Key?">
     <?= campoCsrf() ?>
     <input type="hidden" name="accion" value="regenerar_apikey">
+    <input type="hidden" name="tab" value="<?= e($tab) ?>">
     <div class="acciones-panel">
       <button type="submit" class="boton boton-peligro">Regenerar clave de carga</button>
     </div>
