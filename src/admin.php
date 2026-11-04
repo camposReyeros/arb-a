@@ -65,6 +65,14 @@ function condicionesAdmin(array $filtros): array
                                    where x.archivo_id = a.id and lower(x.correo) like :correo_like escape '\\'))",
     ];
 
+    // El estado también filtra en servidor: el buscador del panel lo refleja al instante.
+    $estado = (string) ($filtros['estado'] ?? 'todos');
+    if ($estado === 'expirado') {
+        $condiciones[] = 'a.expira_en <= now()';
+    } elseif ($estado === 'vigente') {
+        $condiciones[] = 'a.expira_en > now()';
+    }
+
     // Los comodines del usuario no deben ampliar la búsqueda: se escapan.
     $escapa = static fn (string $valor): string
         => str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $valor);
@@ -109,12 +117,11 @@ function estadisticasArchivos(array $filtros): array
     [$where, $parametros] = condicionesAdmin($filtros);
     $nunca = !empty($filtros['nunca']) ? ' having count(e.id) = 0' : '';
 
-    $sql = "select a.id, a.nombre, a.subido_en, a.expira_en,
+    $orden = (string) ($filtros['estado'] ?? 'todos') === 'expirado' ? 'a.expira_en asc' : 'a.subido_en desc';
+
+    $sql = "select a.id, a.nombre, a.subido_en, a.expira_en, a.bytes_gz,
                    (select count(*) from archivo_destinatario d
                      where d.archivo_id = a.id) as destinatarios,
-                   (select coalesce(string_agg(lower(x.correo), ' '), '')
-                      from archivo_destinatario x
-                     where x.archivo_id = a.id) as correos,
                    count(e.id) filter (where e.via = 'ui') as ui,
                    count(e.id) filter (where e.via = 'directo') as directo,
                    max(e.creado_en) as ultimo
@@ -122,7 +129,7 @@ function estadisticasArchivos(array $filtros): array
               left join evento_acceso e on e.archivo_id = a.id
              where a.borrado_en is null and {$where}
              group by a.id{$nunca}
-             order by a.subido_en desc
+             order by {$orden}
              limit 200";
 
     $stmt = bd()->prepare($sql);
@@ -149,36 +156,6 @@ function estadisticasDestinatarios(array $filtros): array
              group by a.id, d.correo{$nunca}
              order by a.subido_en desc, d.correo
              limit 300";
-
-    $stmt = bd()->prepare($sql);
-    $stmt->execute($parametros);
-
-    return $stmt->fetchAll();
-}
-
-/** Archivos vivos que la purga manual puede borrar, con los filtros del panel. */
-function archivosPurgables(array $filtros): array
-{
-    $estado = (string) ($filtros['estado'] ?? 'todos');
-    $where = ['a.borrado_en is null'];
-    $parametros = [];
-
-    if ($estado === 'expirado') {
-        $where[] = 'a.expira_en <= now()';
-    } elseif ($estado === 'vigente') {
-        $where[] = 'a.expira_en > now()';
-    }
-
-    [$filtro, $parametros] = condicionesAdmin($filtros);
-    $where[] = $filtro;
-
-    $sql = 'select a.id, a.nombre, a.subido_en, a.expira_en, a.bytes_gz,
-                   (select count(*) from archivo_destinatario d
-                     where d.archivo_id = a.id) as destinatarios
-              from archivo a
-             where ' . implode(' and ', $where) . '
-             order by a.expira_en asc, a.subido_en desc
-             limit 200';
 
     $stmt = bd()->prepare($sql);
     $stmt->execute($parametros);

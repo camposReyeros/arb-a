@@ -2,82 +2,80 @@
 declare(strict_types=1);
 
 /**
- * Tablas de uso del panel de administración.
- *
- * Cada fila lleva `data-buscar` (nombre y correos en minúsculas) y `data-reciente`;
- * el buscador de `portal.js` filtra al vuelo y arranca mostrando solo las recientes.
+ * Tablas del panel. Cada fila lleva en `data-*` lo que necesita el filtro del cliente:
+ * nombre/correo en minúsculas, estado, «nunca abierto» y si pertenece a los 5 recientes.
  */
 
-/**
- * @param array<int, array<string, mixed>> $filas
- * @param array<int, true> $recientes
- */
-function tablaUsoPorArchivo(array $filas, array $recientes, string $ayudaId = ''): void
+require_once __DIR__ . '/layout.php';
+
+/** Uso por archivo y purga en la misma tabla (checkbox dentro del formulario POST). */
+function tablaArchivos(array $filas, array $recientes): void
 {
     ?>
-  <div class="filtros">
-    <input type="search" id="buscar-archivos" placeholder="Búsqueda rápida: nombre o correo…" aria-label="Búsqueda rápida por nombre de archivo o correo destinatario"<?= $ayudaId !== '' ? ' aria-describedby="' . e($ayudaId) . '"' : '' ?>>
-  </div>
-  <div class="tabla-caja">
+  <div class="tabla-caja tabla-densa">
     <table>
       <thead>
         <tr>
+          <th class="col-check"><input type="checkbox" id="seleccionar-todos" aria-label="Seleccionar los archivos visibles"></th>
           <th>Archivo</th>
+          <th>Tamaño</th>
           <th>Destinatarios</th>
-          <th>Accesos UI</th>
-          <th>Link directo</th>
+          <th>Sesión</th>
+          <th>Directo</th>
           <th>Último acceso</th>
-          <th></th>
+          <th>Vencimiento</th>
+          <th>Estado</th>
         </tr>
       </thead>
       <tbody id="filas-archivos">
         <?php foreach ($filas as $fila):
             $total = (int) $fila['ui'] + (int) $fila['directo'];
-            $reciente = isset($recientes[(int) $fila['id']]);
-            $texto = mb_strtolower((string) $fila['nombre'] . ' ' . (string) $fila['correos']); ?>
-        <tr data-buscar="<?= e($texto) ?>" data-reciente="<?= $reciente ? '1' : '0' ?>">
+            $vencido = yaVencio((string) $fila['expira_en']); ?>
+        <tr data-nombre="<?= e(mb_strtolower((string) $fila['nombre'])) ?>"
+            data-estado="<?= $vencido ? 'expirado' : 'vigente' ?>"
+            data-nunca="<?= $total === 0 ? '1' : '0' ?>"
+            data-reciente="<?= isset($recientes[(int) $fila['id']]) ? '1' : '0' ?>">
+          <td class="col-check"><input type="checkbox" name="ids[]" value="<?= (int) $fila['id'] ?>" aria-label="Seleccionar <?= e((string) $fila['nombre']) ?>"></td>
           <td class="nombre"><?= e((string) $fila['nombre']) ?></td>
+          <td><?= e(tamanoLegible((int) $fila['bytes_gz'])) ?></td>
           <td><?= (int) $fila['destinatarios'] ?></td>
           <td><?= (int) $fila['ui'] ?></td>
           <td><?= (int) $fila['directo'] ?></td>
           <td><?= e(fechaHoraVisible($fila['ultimo'] !== null ? (string) $fila['ultimo'] : null)) ?></td>
-          <td><?php if ($total === 0): ?><span class="badge badge-pronto">Nunca abierto</span><?php endif; ?></td>
+          <td><?= e(fechaVisible((string) $fila['expira_en'])) ?></td>
+          <td><span class="badge <?= $vencido ? 'badge-alerta' : 'badge-ok' ?>"><?= $vencido ? 'Vencido' : 'Vigente' ?></span></td>
         </tr>
         <?php endforeach; ?>
       </tbody>
     </table>
   </div>
-  <p class="sub" id="sin-resultados-archivos" role="status" hidden>Ningún archivo coincide con la búsqueda.</p>
+  <p class="sub" id="conteo-archivos" aria-live="polite"></p>
+  <p class="sub" id="sin-resultados-archivos" hidden>Ningún archivo coincide con la búsqueda.</p>
     <?php
 }
 
-/**
- * @param array<int, array<string, mixed>> $filas
- * @param array<int, true> $recientes
- */
-function tablaAccesosPorDestinatario(array $filas, array $recientes, string $ayudaId = ''): void
+/** Accesos por destinatario: una fila por archivo y correo. */
+function tablaDestinatarios(array $filas, array $recientes): void
 {
     ?>
-  <div class="filtros">
-    <input type="search" id="buscar-destinatarios" placeholder="Búsqueda rápida: correo o archivo…" aria-label="Búsqueda rápida por correo destinatario o nombre de archivo"<?= $ayudaId !== '' ? ' aria-describedby="' . e($ayudaId) . '"' : '' ?>>
-  </div>
-  <div class="tabla-caja">
+  <div class="tabla-caja tabla-densa">
     <table>
       <thead>
         <tr>
           <th>Archivo</th>
           <th>Correo</th>
-          <th>Accesos UI</th>
+          <th>Accesos por sesión</th>
           <th>Primer acceso</th>
           <th>Último acceso</th>
-          <th></th>
+          <th><span class="solo-lectores">Estado</span></th>
         </tr>
       </thead>
       <tbody id="filas-destinatarios">
-        <?php foreach ($filas as $fila):
-            $reciente = isset($recientes[(int) $fila['archivo_id']]);
-            $texto = mb_strtolower((string) $fila['nombre'] . ' ' . (string) $fila['correo']); ?>
-        <tr data-buscar="<?= e($texto) ?>" data-reciente="<?= $reciente ? '1' : '0' ?>">
+        <?php foreach ($filas as $fila): ?>
+        <tr data-archivo="<?= e(mb_strtolower((string) $fila['nombre'])) ?>"
+            data-correo="<?= e(mb_strtolower((string) $fila['correo'])) ?>"
+            data-nunca="<?= (int) $fila['accesos'] === 0 ? '1' : '0' ?>"
+            data-reciente="<?= isset($recientes[(int) $fila['archivo_id']]) ? '1' : '0' ?>">
           <td class="nombre"><?= e((string) $fila['nombre']) ?></td>
           <td><?= e((string) $fila['correo']) ?></td>
           <td><?= (int) $fila['accesos'] ?></td>
@@ -89,6 +87,7 @@ function tablaAccesosPorDestinatario(array $filas, array $recientes, string $ayu
       </tbody>
     </table>
   </div>
-  <p class="sub" id="sin-resultados-destinatarios" role="status" hidden>Ningún destinatario coincide con la búsqueda.</p>
+  <p class="sub" id="conteo-destinatarios" aria-live="polite"></p>
+  <p class="sub" id="sin-resultados-destinatarios" hidden>Ningún destinatario coincide con la búsqueda.</p>
     <?php
 }

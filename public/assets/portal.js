@@ -42,26 +42,67 @@
     }
   }
 
-  // Panel: cada tabla arranca con los 5 archivos más recientes; el buscador filtra
-  // al vuelo por nombre o correo sobre lo ya cargado y va revelando el resto.
-  const montarBuscador = (idBuscar, idFilas, idVacio) => {
-    const input = document.getElementById(idBuscar);
-    const tbody = document.getElementById(idFilas);
-    const vacio = document.getElementById(idVacio);
+  // El maestro de la purga refleja solo las filas visibles.
+  const sincronizarSeleccion = () => {
+    const master = document.getElementById('seleccionar-todos');
 
-    if (!input || !tbody) {
+    if (!master) {
       return;
     }
 
+    const visibles = Array.from(document.querySelectorAll('input[name="ids[]"]'))
+      .filter((caja) => !caja.closest('tr').hidden);
+
+    master.checked = visibles.length > 0 && visibles.every((caja) => caja.checked);
+  };
+
+  // Panel: la tabla arranca con los 5 archivos más recientes y los filtros actúan al
+  // instante sobre lo ya cargado; «Filtrar» vuelve a consultar el servidor.
+  const montarTabla = (idFilas, idVacio, idContador, rotulo, campos) => {
+    const tbody = document.getElementById(idFilas);
+
+    if (!tbody) {
+      return;
+    }
+
+    const vacio = idVacio ? document.getElementById(idVacio) : null;
+    const contador = idContador ? document.getElementById(idContador) : null;
     const filas = Array.from(tbody.querySelectorAll('tr'));
+    const controles = campos
+      .map((campo) => ({ ...campo, el: document.getElementById(campo.id) }))
+      .filter((campo) => campo.el !== null);
+
+    const activo = (campo) => {
+      if (campo.tipo === 'check') {
+        return campo.el.checked;
+      }
+      if (campo.tipo === 'select') {
+        return campo.el.value !== campo.defecto;
+      }
+
+      return campo.el.value.trim() !== '';
+    };
+
+    const coincide = (tr, campo) => {
+      if (campo.tipo === 'check') {
+        return !campo.el.checked || tr.dataset[campo.campo] === '1';
+      }
+      if (campo.tipo === 'select') {
+        return campo.el.value === campo.defecto || tr.dataset[campo.campo] === campo.el.value;
+      }
+
+      const texto = campo.el.value.trim().toLowerCase();
+
+      return texto === '' || (tr.dataset[campo.campo] || '').includes(texto);
+    };
 
     const aplicar = () => {
-      const q = input.value.trim().toLowerCase();
+      const hayFiltro = controles.some(activo);
       let visibles = 0;
 
       filas.forEach((tr) => {
-        const texto = tr.dataset.buscar || '';
-        const mostrar = q === '' ? tr.dataset.reciente === '1' : texto.includes(q);
+        const mostrar = (hayFiltro || tr.dataset.reciente === '1')
+          && controles.every((campo) => coincide(tr, campo));
 
         tr.hidden = !mostrar;
         if (mostrar) {
@@ -72,30 +113,48 @@
       if (vacio) {
         vacio.hidden = visibles !== 0;
       }
+      if (contador) {
+        contador.textContent = visibles === filas.length
+          ? ''
+          : `Mostrando ${visibles} de ${filas.length} ${rotulo}.`;
+      }
+      sincronizarSeleccion();
     };
 
-    input.addEventListener('input', aplicar);
+    controles.forEach((campo) => {
+      campo.el.addEventListener(campo.tipo === 'text' ? 'input' : 'change', aplicar);
+    });
     aplicar();
   };
 
-  montarBuscador('buscar-archivos', 'filas-archivos', 'sin-resultados-archivos');
-  montarBuscador('buscar-destinatarios', 'filas-destinatarios', 'sin-resultados-destinatarios');
+  if (document.getElementById('filas-archivos')) {
+    montarTabla('filas-archivos', 'sin-resultados-archivos', 'conteo-archivos', 'archivos', [
+      { id: 'filtro-nombre', campo: 'nombre', tipo: 'text' },
+      { id: 'filtro-estado', campo: 'estado', tipo: 'select', defecto: 'todos' },
+      { id: 'filtro-nunca', campo: 'nunca', tipo: 'check' },
+    ]);
+  } else {
+    montarTabla('filas-destinatarios', 'sin-resultados-destinatarios', 'conteo-destinatarios', 'destinatarios', [
+      { id: 'filtro-correo', campo: 'correo', tipo: 'text' },
+      { id: 'filtro-archivo', campo: 'archivo', tipo: 'text' },
+      { id: 'filtro-nunca', campo: 'nunca', tipo: 'check' },
+    ]);
+  }
 
-  // Panel: seleccionar todos los archivos de la purga.
+  // Panel: seleccionar todos los archivos visibles de la purga.
   const todos = document.getElementById('seleccionar-todos');
   if (todos) {
     const cajas = () => Array.from(document.querySelectorAll('input[name="ids[]"]'));
 
     todos.addEventListener('change', () => {
       cajas().forEach((caja) => {
-        caja.checked = todos.checked;
+        if (!caja.closest('tr').hidden) {
+          caja.checked = todos.checked;
+        }
       });
     });
 
-    cajas().forEach((caja) => caja.addEventListener('change', () => {
-      const lista = cajas();
-      todos.checked = lista.length > 0 && lista.every((otra) => otra.checked);
-    }));
+    cajas().forEach((caja) => caja.addEventListener('change', sincronizarSeleccion));
   }
 
   // Panel: confirmar antes de una acción destructiva. Solo la purga exige
