@@ -10,11 +10,11 @@ declare(strict_types=1);
  */
 
 const ARB_A_ERRORES = [
-    'metodo_no_permitido'         => [405, 'método no permitido; use POST'],
+    'metodo_no_permitido'         => [405, 'método no permitido; use PUT o POST'],
     'servicio_no_disponible'      => [503, 'el servicio de carga no está disponible'],
     'apikey_invalida'             => [401, 'API-Key inválida o ausente'],
     'destinatarios_invalidos'     => [422, 'X-Correos no trae destinatarios válidos'],
-    'falta_archivo'               => [422, 'falta el campo "archivo" en multipart/form-data'],
+    'falta_archivo'               => [422, 'no llegó el CSV en el cuerpo de la petición'],
     'archivo_muy_grande'          => [413, 'el archivo excede el tamaño máximo permitido'],
     'archivo_vacio'               => [422, 'el archivo está vacío'],
     'archivo_incompleto'          => [422, 'el archivo se leyó incompleto; reintente la carga'],

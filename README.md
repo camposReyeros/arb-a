@@ -8,8 +8,9 @@ Dominio: **arb-a.servicios.care**
 
 ## Qué hace
 
-1. `POST /api/upload` con `X-Api-Key` y `X-Correos` (lista separada por comas) → guarda el CSV
-   comprimido en gzip y responde con el link.
+1. `PUT /api/upload` (o `POST`) con `X-Api-Key`, `X-Correos` (lista separada por comas) y el
+   CSV **crudo** en el cuerpo; `X-Nombre` es opcional → guarda el CSV comprimido en gzip y
+   responde con el link.
 2. Se envía a cada destinatario un correo con el link directo `/d/<token>`, vigente 30 días.
 3. La UI con login (usuario y contraseña de ipro) lista los archivos del usuario y registra
    cada acceso. El archivo se conserva 90 días; después de los 30 del link, solo se llega aquí.

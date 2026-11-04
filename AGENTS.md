@@ -81,6 +81,10 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   con un lock por IP: dos peticiones simultáneas no pueden colarse contando a la vez. La cuota
   se reserva en esa misma transacción, así que un archivo inválido no la consume.
   Sin IP identificable no hay cuota (no se puede castigar a todos en la misma cubeta).
+- **La carga es cuerpo crudo.** `PUT` (o `POST`) con el CSV tal cual y `Content-Type: text/csv`;
+  sin `multipart/form-data`. El nombre visible viene de `X-Nombre` (opcional, default
+  `ARCHIVO.CSV`) porque el cuerpo no lleva `filename`. Se vuelca a un temporal por bloques con
+  tope `api.max_bytes`, así que el `post_max_size` de PHP no aplica a `PUT`.
 - **Los errores de la API tienen `codigo` estable** (`src/errores.php`). El cliente compara
   `codigo`; el mensaje puede cambiar. La documentación de `/api` se genera del mismo catálogo.
 - **Hay una sola API-Key.** Vive en `apikey` como `sha256` y se regenera desde el panel

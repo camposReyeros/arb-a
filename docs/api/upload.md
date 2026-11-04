@@ -5,7 +5,8 @@ link directo con vigencia de **30 días**; el archivo se conserva 90 días y se 
 portal.
 
 - **URL base:** `https://arb-a.servicios.care`
-- **Formato:** siempre JSON (`application/json`)
+- **Cuerpo:** el CSV crudo (`Content-Type: text/csv`), sin multipart
+- **Respuesta:** siempre JSON (`application/json`)
 - **Autenticación:** API-Key por cabecera
 - **Tamaño máximo:** 64 MB sin comprimir por defecto, configurable en el servidor (el caso normal son ~30 MB)
 
@@ -28,9 +29,9 @@ shell.
 
 ---
 
-## POST /api/upload
+## PUT|POST /api/upload
 
-Sube un CSV y dispara los correos.
+Sube un CSV y dispara los correos. `PUT` es la forma recomendada; `POST` se acepta igual.
 
 ### Cabeceras
 
@@ -38,6 +39,7 @@ Sube un CSV y dispara los correos.
 |---|---|---|---|
 | `X-Api-Key` | sí | `k3y...` | Clave del servicio |
 | `X-Correos` | sí | `uno@comex.care;dos@transportesvata.com` | Destinatarios del link. Separados por coma o punto y coma. Máximo 50; se normalizan a minúsculas y se deduplican. **Solo se aceptan dominios autorizados** (ver abajo) |
+| `X-Nombre` | no | `ventas_marzo.csv` | Nombre que se verá en el portal. Se sanea y se guarda en mayúsculas; si falta, `ARCHIVO.CSV` |
 
 ### Dominios autorizados
 
@@ -52,7 +54,8 @@ vacía significa que no se acepta ningún destinatario.
 
 ### Cuerpo
 
-`multipart/form-data` con un único campo de archivo llamado **`archivo`**.
+El CSV **crudo** en el cuerpo de la petición, con `Content-Type: text/csv`. Nada de
+`multipart/form-data`: no hay campos de formulario, solo el archivo.
 
 El archivo debe ser el **CSV sin comprimir**. Si ya viene en gzip se rechaza con
 `csv_ya_comprimido`; el servidor comprime.
@@ -60,10 +63,12 @@ El archivo debe ser el **CSV sin comprimir**. Si ya viene en gzip se rechaza con
 ### Ejemplo con curl
 
 ```bash
-curl -X POST https://arb-a.servicios.care/api/upload \
+curl -X PUT https://arb-a.servicios.care/api/upload \
   -H "X-Api-Key: $ARB_A_APIKEY" \
   -H "X-Correos: uno@comex.care;dos@transportesvata.com" \
-  -F "archivo=@ventas_marzo.csv;type=text/csv"
+  -H "X-Nombre: ventas_marzo.csv" \
+  -H "Content-Type: text/csv" \
+  --data-binary @ventas_marzo.csv
 ```
 
 ### Ejemplo con Python
@@ -75,13 +80,15 @@ import requests
 API = "https://arb-a.servicios.care/api/upload"
 
 with open("ventas_marzo.csv", "rb") as fh:
-    respuesta = requests.post(
+    respuesta = requests.put(
         API,
         headers={
             "X-Api-Key": os.environ["ARB_A_APIKEY"],
             "X-Correos": "uno@comex.care;dos@transportesvata.com",
+            "X-Nombre": "ventas_marzo.csv",
+            "Content-Type": "text/csv",
         },
-        files={"archivo": ("ventas_marzo.csv", fh, "text/csv")},
+        data=fh,  # el archivo va tal cual en el cuerpo
         timeout=180,
     )
 
@@ -97,8 +104,9 @@ else:
     print("CSV:", datos["csv"]["lineas"], "líneas de", datos["csv"]["columnas"], "columnas")
 ```
 
-`files=` no debe fijar `Content-Type` en la petición completa: `requests` arma el boundary del
-`multipart/form-data`. Solo se declara el tipo del archivo, como en el ejemplo.
+`data=fh` manda el CSV crudo sin cargarlo en memoria. No uses `files=` ni `data=...csv...`
+(eso sería multipart o formulario) y no fijes `Content-Length` a mano: lo calcula `requests`.
+
 
 ### Respuesta 201
 
@@ -150,13 +158,13 @@ cliente debe comparar `codigo`; el texto puede cambiar.
 
 | `codigo` | HTTP | Cuándo |
 |---|---|---|
-| `metodo_no_permitido` | 405 | La ruta solo acepta `POST` |
+| `metodo_no_permitido` | 405 | La ruta solo acepta `PUT` o `POST` |
 | `servicio_no_disponible` | 503 | El servicio no tiene clave configurada |
 | `apikey_invalida` | 401 | Falta `X-Api-Key` o no coincide |
 | `destinatarios_invalidos` | 422 | `X-Correos` vacía, con un correo inválido o con más de 50 |
 | `destinatario_no_permitido` | 422 | `X-Correos` trae una dirección de un dominio no autorizado |
 | `cuota_excedida` | 507 | El total de archivos vivos ya ocupa la cuota de disco del servidor. Se libera al vencer los archivos |
-| `falta_archivo` | 422 | No llegó el campo `archivo`, o la subida se interrumpió |
+| `falta_archivo` | 422 | No llegó el CSV en el cuerpo (o vino como `multipart/form-data`) |
 | `archivo_vacio` | 422 | El archivo pesa 0 bytes |
 | `archivo_muy_grande` | 413 | Excede el máximo configurado (64 MB por defecto) o el límite del servidor |
 | `archivo_incompleto` | 422 | Se leyó menos de lo que declaraba el archivo; reintentar |

@@ -13,10 +13,12 @@ cabecerasDeSeguridad();
 header('Content-Type: text/html; charset=utf-8');
 
 $curl = <<<'TXT'
-curl -X POST https://arb-a.servicios.care/api/upload \
+curl -X PUT https://arb-a.servicios.care/api/upload \
   -H "X-Api-Key: $ARB_A_APIKEY" \
   -H "X-Correos: uno@comex.care;dos@transportesvata.com" \
-  -F "archivo=@ventas_marzo.csv;type=text/csv"
+  -H "X-Nombre: ventas_marzo.csv" \
+  -H "Content-Type: text/csv" \
+  --data-binary @ventas_marzo.csv
 TXT;
 
 $python = <<<'TXT'
@@ -24,13 +26,15 @@ import os
 import requests
 
 with open("ventas_marzo.csv", "rb") as fh:
-    r = requests.post(
+    r = requests.put(
         "https://arb-a.servicios.care/api/upload",
         headers={
             "X-Api-Key": os.environ["ARB_A_APIKEY"],
             "X-Correos": "uno@comex.care;dos@transportesvata.com",
+            "X-Nombre": "ventas_marzo.csv",
+            "Content-Type": "text/csv",
         },
-        files={"archivo": ("ventas_marzo.csv", fh, "text/csv")},
+        data=fh,
         timeout=180,
     )
 
@@ -78,11 +82,13 @@ foreach (ARB_A_ERRORES as $codigo => [$estado, $mensaje]) {
   <p class="sub">Sube un CSV, se comprime y se avisa por correo con un link de 30 días (el archivo se guarda 90).</p>
 
   <div class="tarjeta">
-    <p><strong>Endpoint</strong> <span class="snippet">POST /api/upload</span></p>
+    <p><strong>Endpoint</strong> <span class="snippet">PUT /api/upload</span>
+      (<span class="snippet">POST</span> también se acepta)</p>
     <p><strong>Autenticación</strong> <span class="snippet">X-Api-Key</span> — sin clave no se escribe nada.
       La clave se genera en el <strong>panel de administración</strong> (sección API-Key) y se muestra una sola vez.</p>
-    <p><strong>Cuerpo</strong> <span class="snippet">multipart/form-data</span>, campo <span class="snippet">archivo</span>,
-      CSV sin comprimir, máximo 64 MB por defecto (configurable en el servidor).</p>
+    <p><strong>Cuerpo</strong> el CSV crudo en el cuerpo, <span class="snippet">Content-Type: text/csv</span>,
+      sin multipart. Máximo 64 MB por defecto (configurable en el servidor).
+      <span class="snippet">X-Nombre</span> es opcional y solo cambia el nombre visible.</p>
     <p><strong>Destinatarios</strong> <span class="snippet">X-Correos</span> separados por coma o punto y coma, máximo 50.
       Son la regla de acceso: cada uno ve el archivo en el portal.</p>
     <p><strong>Dominios autorizados</strong> solo <span class="snippet">camposreyeros.com</span>,

@@ -14,27 +14,24 @@ require_once __DIR__ . '/correo.php';
  */
 
 /**
- * Guarda el CSV subido: valida, comprime en streaming, registra y avisa por correo.
+ * Guarda el CSV recibido: valida, comprime en streaming, registra y avisa por correo.
  * Devuelve los datos del archivo listo para responder a la API.
+ *
+ * El CSV llega ya volcado a un temporal: el contrato es cuerpo crudo, sin multipart.
+ *
+ * @param string $rutaCsv       ruta al CSV en disco
+ * @param string $nombreOriginal nombre que se mostrará en el portal
  *
  * @throws ErrorDeCarga cuando la petición no cumple el contrato
  */
-function guardarSubida(array $archivo, array $destinatarios, ?string $ip): array
+function guardarSubida(string $rutaCsv, string $nombreOriginal, array $destinatarios, ?string $ip): array
 {
-    $codigoError = (int) ($archivo['error'] ?? UPLOAD_ERR_NO_FILE);
-    if (in_array($codigoError, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
-        throw new ErrorDeCarga('archivo_muy_grande');
-    }
-    if ($codigoError !== UPLOAD_ERR_OK) {
-        throw new ErrorDeCarga('falta_archivo', 'la subida falló con el código ' . $codigoError);
+    if (!is_file($rutaCsv)) {
+        throw new ErrorDeCarga('falta_archivo', 'el cuerpo de la petición no llegó');
     }
 
-    $tmp = (string) ($archivo['tmp_name'] ?? '');
-    if ($tmp === '' || !is_uploaded_file($tmp)) {
-        throw new ErrorDeCarga('falta_archivo', 'el archivo no llegó como subida');
-    }
-
-    $bytes = (int) ($archivo['size'] ?? 0);
+    $tamano = filesize($rutaCsv);
+    $bytes = $tamano === false ? 0 : (int) $tamano;
     $maximo = (int) config()['api']['max_bytes'];
     if ($bytes <= 0) {
         throw new ErrorDeCarga('archivo_vacio');
@@ -46,9 +43,9 @@ function guardarSubida(array $archivo, array $destinatarios, ?string $ip): array
     // Primero lo barato: cuota de disco y de cargas. Después se lee el contenido.
     verificarCuota();
     verificarLimiteCarga($ip);
-    $resumen = analizarCsv($tmp);
+    $resumen = analizarCsv($rutaCsv);
 
-    $nombre = nombreVisible((string) ($archivo['name'] ?? ''));
+    $nombre = nombreVisible($nombreOriginal);
     $dirBase = rtrim((string) config()['archivos']['dir'], '/');
     $dir = $dirBase . '/' . date('Y/m');
 
@@ -57,7 +54,7 @@ function guardarSubida(array $archivo, array $destinatarios, ?string $ip): array
     }
 
     $ruta = $dir . '/' . bin2hex(random_bytes(16)) . '.csv.gz';
-    [$bytesGz, $sha256] = comprimirConHash($tmp, $ruta, $bytes);
+    [$bytesGz, $sha256] = comprimirConHash($rutaCsv, $ruta, $bytes);
 
     $token = bin2hex(random_bytes(32));
     $dias = (int) config()['archivos']['dias'];

@@ -17,46 +17,81 @@ security:
   - ApiKey: []
 paths:
   /api/upload:
-    post:
+    put:
       operationId: subirCsv
       summary: Sube un CSV y avisa por correo a los destinatarios
       description: |
-        El cuerpo es `multipart/form-data` con un solo campo, `archivo`, que debe ser el CSV
-        sin comprimir. El servidor valida el contenido (texto, columnas consistentes) y lo
-        comprime en gzip.
+        El cuerpo es el CSV **crudo** (`Content-Type: text/csv`), sin multipart. El servidor
+        valida el contenido (texto, columnas consistentes) y lo comprime en gzip.
 
         La operación **no es idempotente**: un segundo envío del mismo CSV crea otro archivo
         y manda otros correos.
       parameters:
-        - name: X-Api-Key
+        - $ref: "#/components/parameters/ApiKey"
+        - $ref: "#/components/parameters/Correos"
+        - name: X-Nombre
           in: header
-          required: true
-          description: Clave del servicio. Se compara en tiempo constante.
-          schema:
-            type: string
-        - name: X-Correos
-          in: header
-          required: true
+          required: false
           description: |
-            Destinatarios del link, separados por coma o punto y coma. Se normalizan a
-            minúsculas y se deduplican. Máximo 50. Es también la regla de acceso del portal:
-            un usuario ve el archivo si su correo está aquí.
+            Nombre visible en el portal. Se sanea y se guarda en mayúsculas. Si falta,
+            se usa `ARCHIVO.CSV`.
           schema:
             type: string
-          example: uno@comex.care;dos@transportesvata.com
+          example: ventas_marzo.csv
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          text/csv:
             schema:
-              type: object
-              additionalProperties: false
-              required: [archivo]
-              properties:
-                archivo:
-                  type: string
-                  format: binary
-                  description: CSV sin comprimir. Máximo 64 MB por defecto (configurable).
+              type: string
+        description: CSV sin comprimir. Máximo 64 MB por defecto (configurable).
+      responses:
+        "201":
+          description: Archivo guardado y link emitido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CargaCreada"
+        "401":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/Error"
+        "413":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "429":
+          description: |
+            Más de 100 cargas aceptadas desde la misma IP en una hora. Incluye la cabecera
+            `Retry-After` con los segundos que faltan para que la ventana se libere.
+          headers:
+            Retry-After:
+              description: Segundos de espera antes de reintentar
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: subirCsvPost
+      summary: Igual que `PUT /api/upload` (alias)
+      description: Alias de `PUT`; mismo contrato y mismas respuestas.
+      parameters:
+        - $ref: "#/components/parameters/ApiKey"
+        - $ref: "#/components/parameters/Correos"
+        - $ref: "#/components/parameters/Nombre"
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema:
+              type: string
+              description: CSV sin comprimir. Máximo 64 MB por defecto (configurable).
       responses:
         "201":
           description: Archivo guardado y link emitido
@@ -90,6 +125,35 @@ paths:
         "503":
           $ref: "#/components/responses/Error"
 components:
+  parameters:
+    ApiKey:
+      name: X-Api-Key
+      in: header
+      required: true
+      description: Clave del servicio. Se compara en tiempo constante.
+      schema:
+        type: string
+    Correos:
+      name: X-Correos
+      in: header
+      required: true
+      description: |
+        Destinatarios del link, separados por coma o punto y coma. Se normalizan a
+        minúsculas y se deduplican. Máximo 50. Es también la regla de acceso del portal:
+        un usuario ve el archivo si su correo está aquí.
+      schema:
+        type: string
+      example: uno@comex.care;dos@transportesvata.com
+    Nombre:
+      name: X-Nombre
+      in: header
+      required: false
+      description: |
+        Nombre visible en el portal. Se sanea y se guarda en mayúsculas. Si falta,
+        se usa `ARCHIVO.CSV`.
+      schema:
+        type: string
+      example: ventas_marzo.csv
   securitySchemes:
     ApiKey:
       type: apiKey
