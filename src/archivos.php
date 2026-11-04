@@ -208,6 +208,21 @@ function archivoPorToken(string $token): ?array
     return $fila !== false ? $fila : null;
 }
 
+/** Archivo visible para un correo (regla de acceso del portal, anti-IDOR). */
+function archivoParaCorreo(int $id, string $correo): ?array
+{
+    $stmt = bd()->prepare(
+        'select a.* from archivo a
+           join archivo_destinatario d on d.archivo_id = a.id
+          where a.id = :i and lower(d.correo) = :c
+            and a.borrado_en is null and a.expira_en > now()'
+    );
+    $stmt->execute(['i' => $id, 'c' => normalizarCorreo($correo)]);
+    $fila = $stmt->fetch();
+
+    return $fila !== false ? $fila : null;
+}
+
 /** Archivos que le corresponden a un correo (la regla de acceso de la UI). */
 function archivosDeUsuario(string $correo): array
 {

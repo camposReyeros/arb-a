@@ -27,7 +27,14 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `public/api/index.php` | Documentación viva en `/api`; la tabla de errores sale de `src/errores.php`. |
 | `public/api/openapi.yaml` | Contrato OpenAPI 3.1, servido tal cual. |
 | `docs/api/upload.md` | Documentación de referencia (estilo abuseipdb) para quien integra. |
-| `vistas/` | Fragmentos HTML. No se sirven directo. |
+| `vistas/layout.php` | Helpers de presentación: `htmlInicio`/`htmlFin`, plazas, fechas, tamaños. |
+| `public/index.php` | Raíz: manda a `/archivos.php` o `/login.php` según la sesión. |
+| `public/login.php` | Login del portal (correo + clave, CSRF, throttle, un solo mensaje de error). |
+| `public/salir.php` | Cierre de sesión: solo POST con CSRF. |
+| `public/archivos.php` | "Mis archivos": tabla con buscador y filtro de vigencia. |
+| `public/archivo.php` | Descarga desde el portal; valida sesión y pertenencia (`via = 'ui'`). |
+| `public/assets/portal.css` | Tokens de Corporate Precision. Sin fuentes ni CDN externos. |
+| `public/assets/portal.js` | Filtro de la tabla. Sin dependencias. |
 | `db/schema.sql` | Esquema PostgreSQL idempotente. |
 | `db/migraciones/` | Cambios posteriores, numerados, aplicados a mano. |
 | `bin/limpiar.php` | Purga diaria por cron. |
@@ -68,6 +75,10 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   `codigo`; el mensaje puede cambiar. La documentación de `/api` se genera del mismo catálogo.
 - **Todo acceso se registra** en `evento_acceso` con `via`: `ui` o `directo`. Es la
   materia prima de las estadísticas del panel.
+- **El portal no reutiliza el token del correo** (en BD solo hay `token_hash`). La descarga
+  de la UI es `/archivo.php?id=N`, exige sesión y comprueba que el correo del usuario esté en
+  `archivo_destinatario`; si no, responde 404. Registra el acceso con `via = 'ui'`.
+- **Toda acción con efecto va por POST con CSRF**; la consulta es GET. `salir.php` no acepta GET.
 
 ## Convenciones de código
 
@@ -97,6 +108,11 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 - Login con throttle: 10 fallos en 15 min bloquean 15 min por correo+IP.
 - Sesión PHP con `HttpOnly`, `SameSite=Lax`, `secure` cuando hay HTTPS. Vigencia:
   **30 min de inactividad y 8 h de tope absoluto**.
+- **CSRF obligatorio en todo POST** (`campoCsrf()` en el formulario, `csrfValido()` en el
+  controlador). `csrfValido()`/`csrfToken()` arrancan la sesión por su cuenta: una pantalla que
+  los use no puede quedarse sin sesión por descuido.
+- La descarga del portal (`/archivo.php?id=N`) no confía en el id: junta `archivo` con
+  `archivo_destinatario` por correo de la sesión. Mismo 404 para "no es tuyo" y "no existe".
 - Detrás de Caddy, la IP real y el HTTPS se toman de `X-Forwarded-For`/`X-Forwarded-Proto`
   **solo** si `REMOTE_ADDR` está en `ARB_A_PROXY_IPS`. Sin esa lista no se cree el header.
   De `X-Forwarded-For` se usa el **último** salto (el que añadió el proxy): el primero lo fija
@@ -118,6 +134,7 @@ Pruebas puras (sin BD), corren en el mismo contenedor:
 
 ```bash
 docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/csv_test.php
+docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/vistas_test.php
 ```
 
 El humo con BD (levantar `db-arb-a`, aplicar `db/schema.sql`, subir un CSV y descargarlo)

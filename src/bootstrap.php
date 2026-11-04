@@ -58,6 +58,7 @@ function cabecerasDeSeguridad(): void
 
 function csrfToken(): string
 {
+    iniciarSesion();
     if (empty($_SESSION['csrf'])) {
         $_SESSION['csrf'] = bin2hex(random_bytes(32));
     }
@@ -67,6 +68,8 @@ function csrfToken(): string
 
 function csrfValido(?string $token): bool
 {
+    iniciarSesion();
+
     return is_string($token) && !empty($_SESSION['csrf']) && hash_equals($_SESSION['csrf'], $token);
 }
 
@@ -88,11 +91,13 @@ function redirigir(string $destino): never
 
 function aviso(string $mensaje, string $tipo = 'ok'): void
 {
+    iniciarSesion();
     $_SESSION['aviso'] = ['mensaje' => $mensaje, 'tipo' => $tipo];
 }
 
 function tomarAviso(): ?array
 {
+    iniciarSesion();
     $aviso = $_SESSION['aviso'] ?? null;
     unset($_SESSION['aviso']);
 
