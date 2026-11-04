@@ -3,11 +3,11 @@
 /* Fuentes auto-hospedadas (SIL Open Font License 1.1, Google Fonts).
    No se cargan de terceros: la CSP es `default-src 'self'`. */
 @font-face {
-  font-family: "Sora";
+  font-family: "Fraunces";
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url("/assets/fonts/sora-600.woff2") format("woff2");
+  src: url("/assets/fonts/fraunces-600.woff2") format("woff2");
 }
 @font-face {
   font-family: "Edu TAS Beginner";
@@ -50,12 +50,12 @@ body.portal {
 }
 body.portal h1,
 body.portal .marca {
-  font-family: "Sora", system-ui, sans-serif;
+  font-family: "Fraunces", Georgia, serif;
   font-weight: 600;
-  letter-spacing: -.01em;
+  letter-spacing: 0;
 }
-body.portal .marca { font-size: 22px; letter-spacing: .02em; }
-body.portal h1 { font-size: 31px; }
+body.portal .marca { font-size: 24px; letter-spacing: .01em; }
+body.portal h1 { font-size: 34px; }
 
 a { color: var(--primario); text-decoration: none; }
 a:hover { color: var(--primario-hover); }

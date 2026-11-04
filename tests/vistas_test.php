@@ -28,10 +28,10 @@ ok(tamanoLegible(5 * 1024 * 1024) === '5.0 MB', 'tamaño en MB');
 // Fuentes auto-hospedadas: la CSP es `default-src 'self'`, no se permite Google Fonts.
 $css = (string) file_get_contents(__DIR__ . '/../public/assets/portal.css');
 ok(str_contains($css, '@font-face'), 'el CSS declara las fuentes locales');
-ok(str_contains($css, '/assets/fonts/sora-600.woff2'), 'el CSS usa Sora local');
+ok(str_contains($css, '/assets/fonts/fraunces-600.woff2'), 'el CSS usa Fraunces local');
 ok(str_contains($css, '/assets/fonts/edu-tas-beginner.woff2'), 'el CSS usa Edu TAS Beginner local');
 ok(!str_contains($css, 'fonts.googleapis.com') && !str_contains($css, 'fonts.gstatic.com'), 'sin fuentes de terceros');
-ok(is_file(__DIR__ . '/../public/assets/fonts/sora-600.woff2'), 'existe el woff2 de Sora');
+ok(is_file(__DIR__ . '/../public/assets/fonts/fraunces-600.woff2'), 'existe el woff2 de Fraunces');
 ok(is_file(__DIR__ . '/../public/assets/fonts/edu-tas-beginner.woff2'), 'existe el woff2 de Edu TAS Beginner');
 
 if ($fallos > 0) {
