@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/bd.php';
 require_once __DIR__ . '/csv.php';
+require_once __DIR__ . '/xlsx.php';
+require_once __DIR__ . '/entrega.php';
 require_once __DIR__ . '/limite.php';
 require_once __DIR__ . '/cuota.php';
 require_once __DIR__ . '/correo.php';
@@ -14,23 +16,23 @@ require_once __DIR__ . '/correo.php';
  */
 
 /**
- * Guarda el CSV recibido: valida, comprime en streaming, registra y avisa por correo.
- * Devuelve los datos del archivo listo para responder a la API.
+ * Guarda el archivo recibido (CSV o .xlsx): valida, escribe en el depósito, registra
+ * y avisa por correo. Devuelve los datos listos para responder a la API.
  *
- * El CSV llega ya volcado a un temporal: el contrato es cuerpo crudo, sin multipart.
+ * El archivo llega ya volcado a un temporal: el contrato es cuerpo crudo, sin multipart.
  *
- * @param string $rutaCsv       ruta al CSV en disco
+ * @param string $rutaTemporal   ruta al archivo temporal en disco
  * @param string $nombreOriginal nombre que se mostrará en el portal
  *
  * @throws ErrorDeCarga cuando la petición no cumple el contrato
  */
-function guardarSubida(string $rutaCsv, string $nombreOriginal, array $destinatarios, ?string $ip): array
+function guardarSubida(string $rutaTemporal, string $nombreOriginal, array $destinatarios, ?string $ip): array
 {
-    if (!is_file($rutaCsv)) {
+    if (!is_file($rutaTemporal)) {
         throw new ErrorDeCarga('falta_archivo', 'el cuerpo de la petición no llegó');
     }
 
-    $tamano = filesize($rutaCsv);
+    $tamano = filesize($rutaTemporal);
     $bytes = $tamano === false ? 0 : (int) $tamano;
     $maximo = (int) config()['api']['max_bytes'];
     if ($bytes <= 0) {
@@ -43,9 +45,15 @@ function guardarSubida(string $rutaCsv, string $nombreOriginal, array $destinata
     // Primero lo barato: cuota de disco y de cargas. Después se lee el contenido.
     verificarCuota();
     verificarLimiteCarga($ip);
-    $resumen = analizarCsv($rutaCsv);
 
-    $nombre = nombreVisible($nombreOriginal);
+    // El tipo lo decide el contenido: un .xlsx es un ZIP; un .xls viejo es OLE2.
+    if (esXlsBinario($rutaTemporal)) {
+        throw new ErrorDeCarga('formato_no_soportado', 'el .xls antiguo no se acepta; guarde el libro como .xlsx');
+    }
+    $tipo = esXlsx($rutaTemporal) ? 'xlsx' : 'csv';
+    $resumen = $tipo === 'xlsx' ? ['xlsx' => analizarXlsx($rutaTemporal)] : ['csv' => analizarCsv($rutaTemporal)];
+
+    $nombre = nombreVisible($nombreOriginal, $tipo);
     $dirBase = rtrim((string) config()['archivos']['dir'], '/');
     $dir = $dirBase . '/' . date('Y/m');
 
@@ -53,8 +61,11 @@ function guardarSubida(string $rutaCsv, string $nombreOriginal, array $destinata
         throw new RuntimeException('no se pudo crear el directorio de archivos');
     }
 
-    $ruta = $dir . '/' . bin2hex(random_bytes(16)) . '.csv.gz';
-    [$bytesGz, $sha256] = comprimirConHash($rutaCsv, $ruta, $bytes);
+    // El xlsx ya viene comprimido (deflate): se guarda tal cual. El CSV se comprime a .gz.
+    $ruta = $dir . '/' . bin2hex(random_bytes(16)) . ($tipo === 'xlsx' ? '.xlsx' : '.csv.gz');
+    [$bytesGz, $sha256] = $tipo === 'xlsx'
+        ? copiarConHash($rutaTemporal, $ruta, $bytes)
+        : comprimirConHash($rutaTemporal, $ruta, $bytes);
 
     $token = bin2hex(random_bytes(32));
     $dias = (int) config()['archivos']['dias'];
@@ -67,8 +78,8 @@ function guardarSubida(string $rutaCsv, string $nombreOriginal, array $destinata
         reservarCuota($bytesGz);
 
         $stmt = $pdo->prepare(
-            'insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, token_hash, ip_origen, expira_en, link_expira_en)
-             values (:n, :r, :b, :g, :s, :t, cast(:ip as inet),
+            'insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, tipo, token_hash, ip_origen, expira_en, link_expira_en)
+             values (:n, :r, :b, :g, :s, :tipo, :t, cast(:ip as inet),
                      now() + make_interval(days => :d),
                      now() + make_interval(days => :dl))
              returning id, expira_en, link_expira_en'
@@ -79,6 +90,7 @@ function guardarSubida(string $rutaCsv, string $nombreOriginal, array $destinata
             'b' => $bytes,
             'g' => $bytesGz,
             's' => $sha256,
+            'tipo' => $tipo,
             't' => hash('sha256', $token),
             'ip' => $ip,
             'd' => $dias,
@@ -107,87 +119,21 @@ function guardarSubida(string $rutaCsv, string $nombreOriginal, array $destinata
     }
 
     $link = rtrim((string) config()['url_base'], '/') . '/d/' . $token;
-    $envios = avisarDestinatarios($archivoId, $destinatarios, $nombre, $bytes, $link, $expiraLink, $expira);
+    $envios = avisarDestinatarios($archivoId, $destinatarios, $nombre, $bytes, $tipo, $link, $expiraLink, $expira);
 
     return [
         'id' => $archivoId,
         'nombre' => $nombre,
+        'tipo' => $tipo,
         'bytes' => $bytes,
         'bytes_gz' => $bytesGz,
         'sha256' => $sha256,
         'expira_en' => $expira,
         'link_expira_en' => $expiraLink,
         'link' => $link,
-        'csv' => $resumen,
+        ...$resumen,
         'envios' => $envios,
     ];
-}
-
-/**
- * Comprime en streaming y calcula el sha256 del original en el mismo recorrido.
- * Si algo falla a la mitad, el .gz parcial se borra: nunca se registra un archivo truncado.
- *
- * @return array{0: int, 1: string} [bytes comprimidos, sha256 del original]
- */
-function comprimirConHash(string $origen, string $destino, int $bytesEsperados): array
-{
-    $entrada = @fopen($origen, 'rb');
-    if ($entrada === false) {
-        throw new RuntimeException('no se pudo leer el archivo a comprimir');
-    }
-
-    $salida = @gzopen($destino, 'wb6');
-    if ($salida === false) {
-        fclose($entrada);
-        throw new RuntimeException('no se pudo crear el archivo comprimido');
-    }
-
-    $hash = hash_init('sha256');
-    $total = 0;
-    $fallo = null;
-
-    while (!feof($entrada)) {
-        $bloque = fread($entrada, 1 << 20);
-        if ($bloque === false) {
-            $fallo = 'falló la lectura del archivo';
-            break;
-        }
-        if ($bloque === '') {
-            break;
-        }
-        hash_update($hash, $bloque);
-        if (gzwrite($salida, $bloque) !== strlen($bloque)) {
-            $fallo = 'falló la escritura del archivo comprimido';
-            break;
-        }
-        $total += strlen($bloque);
-    }
-
-    fclose($entrada);
-    if (!gzclose($salida) && $fallo === null) {
-        $fallo = 'no se pudo cerrar el archivo comprimido';
-    }
-
-    if ($fallo !== null) {
-        @unlink($destino);
-        throw new RuntimeException($fallo);
-    }
-    if ($total !== $bytesEsperados) {
-        @unlink($destino);
-        throw new ErrorDeCarga('archivo_incompleto', $total . ' de ' . $bytesEsperados . ' bytes');
-    }
-
-    $bytesGz = @filesize($destino);
-    if ($bytesGz === false || $bytesGz <= 0) {
-        @unlink($destino);
-        throw new RuntimeException('el archivo comprimido quedó vacío');
-    }
-    if (!chmod($destino, 0600)) {
-        @unlink($destino);
-        throw new RuntimeException('no se pudieron fijar los permisos del archivo comprimido');
-    }
-
-    return [$bytesGz, hash_final($hash)];
 }
 
 /** Archivo vigente por token (el token viaja en claro solo en el link). */

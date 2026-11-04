@@ -2,14 +2,14 @@
 declare(strict_types=1);
 
 /**
- * PUT|POST /api/upload — carga de un CSV.
+ * PUT|POST /api/upload — carga de un CSV o un libro .xlsx.
  *
  * Cabeceras:
  *   X-Api-Key   obligatoria
  *   X-Correos   obligatoria, lista separada por comas o punto y coma
- *   X-Nombre    opcional, nombre visible en el portal (default archivo.csv)
+ *   X-Nombre    opcional, nombre visible en el portal (default: según el tipo)
  *
- * Cuerpo: el CSV crudo (Content-Type: text/csv). Sin multipart.
+ * Cuerpo: el archivo crudo (CSV con text/csv, o .xlsx). Sin multipart.
  * Respuesta: JSON con `codigo` estable en los errores, y `exit`.
  */
 
@@ -100,7 +100,7 @@ try {
     // El contrato es cuerpo crudo: si llega un formulario, el mensaje lo dice.
     $tipo = mb_strtolower(trim((string) ($_SERVER['CONTENT_TYPE'] ?? '')));
     if (str_starts_with($tipo, 'multipart/')) {
-        throw new ErrorDeCarga('falta_archivo', 'manda el CSV crudo en el cuerpo, sin multipart');
+        throw new ErrorDeCarga('falta_archivo', 'manda el archivo crudo en el cuerpo, sin multipart');
     }
 
     $destinatarios = parseDestinatarios((string) ($_SERVER['HTTP_X_CORREOS'] ?? ''));
@@ -124,7 +124,7 @@ try {
         throw new ErrorDeCarga('archivo_muy_grande', 'máximo ' . $maximo . ' bytes');
     }
 
-    $tmp = tempnam(sys_get_temp_dir(), 'arba-csv-');
+    $tmp = tempnam(sys_get_temp_dir(), 'arba-');
     if ($tmp === false) {
         throw new RuntimeException('no se pudo crear el temporal de la carga');
     }

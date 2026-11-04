@@ -5,7 +5,7 @@ require_once __DIR__ . '/bd.php';
 require_once __DIR__ . '/errores.php';
 
 /**
- * Cuota global de disco: la suma de los .gz vivos no puede pasar de `archivos.cuota_bytes`.
+ * Cuota global de disco: la suma de `bytes_gz` de los archivos vivos (el CSV comprimido o el `.xlsx` tal cual) no puede pasar de `archivos.cuota_bytes`.
  *
  * Un archivo cuenta mientras esté vivo (ni vencido ni borrado). Al vencer, la purga lo borra
  * y el espacio se libera solo: no hay contador que mantener ni que descuadrar.

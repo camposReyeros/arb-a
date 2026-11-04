@@ -14,7 +14,7 @@ const ARB_A_ERRORES = [
     'servicio_no_disponible'      => [503, 'el servicio de carga no está disponible'],
     'apikey_invalida'             => [401, 'API-Key inválida o ausente'],
     'destinatarios_invalidos'     => [422, 'X-Correos no trae destinatarios válidos'],
-    'falta_archivo'               => [422, 'no llegó el CSV en el cuerpo de la petición'],
+    'falta_archivo'               => [422, 'no llegó el archivo en el cuerpo de la petición'],
     'archivo_muy_grande'          => [413, 'el archivo excede el tamaño máximo permitido'],
     'archivo_vacio'               => [422, 'el archivo está vacío'],
     'archivo_incompleto'          => [422, 'el archivo se leyó incompleto; reintente la carga'],
@@ -27,6 +27,10 @@ const ARB_A_ERRORES = [
     'csv_ilegible'                => [422, 'no se pudo leer el archivo'],
     'csv_columnas_inconsistentes' => [422, 'todas las líneas deben tener el mismo número de columnas'],
     'csv_demasiadas_columnas'     => [422, 'el CSV tiene demasiadas columnas'],
+    'archivo_ilegible'            => [422, 'no se pudo leer el archivo'],
+    'formato_no_soportado'        => [422, 'formato no soportado; envíe un CSV o un .xlsx'],
+    'xlsx_invalido'               => [422, 'el archivo no es un libro de Excel válido'],
+    'xlsx_con_macros'             => [422, 'el libro trae macros; guárdelo como .xlsx sin macros'],
     'error_interno'               => [500, 'no se pudo guardar el archivo'],
 ];
 

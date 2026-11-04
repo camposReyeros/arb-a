@@ -69,11 +69,11 @@ registrarAcceso(
     isset($_SERVER['HTTP_USER_AGENT']) ? mb_substr((string) $_SERVER['HTTP_USER_AGENT'], 0, 300) : null
 );
 
-// El nombre viene saneado en origen; se limpia otra vez en el sumidero (cabecera HTTP).
-$nombre = preg_replace('/[\r\n"\\\\\x00-\x1f\x7f]/', '', (string) $archivo['nombre']) ?? 'ARCHIVO.CSV';
+// MIME y nombre según el tipo real (CSV comprimido a .gz; xlsx tal cual).
+$descarga = descargaDe($archivo);
 
-header('Content-Type: application/gzip');
-header('Content-Disposition: attachment; filename="' . $nombre . '.gz"');
+header('Content-Type: ' . $descarga['mime']);
+header('Content-Disposition: attachment; filename="' . $descarga['nombre'] . '"');
 header('Content-Length: ' . (string) $bytes);
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');

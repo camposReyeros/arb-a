@@ -1,11 +1,11 @@
 # ARB-A · API de carga
 
-Carga un CSV y avisa por correo a los destinatarios indicados. Cada destinatario recibe un
-link directo con vigencia de **30 días**; el archivo se conserva 90 días y se consulta desde el
-portal.
+Carga un **CSV** (o un libro **.xlsx**) y avisa por correo a los destinatarios indicados. Cada
+destinatario recibe un link directo con vigencia de **30 días**; el archivo se conserva 90 días y
+se consulta desde el portal.
 
 - **URL base:** `https://arb-a.servicios.care`
-- **Cuerpo:** el CSV crudo (`Content-Type: text/csv`), sin multipart
+- **Cuerpo:** el archivo crudo: CSV (`Content-Type: text/csv`) o `.xlsx`, sin multipart
 - **Respuesta:** siempre JSON (`application/json`)
 - **Autenticación:** API-Key por cabecera
 - **Tamaño máximo:** 64 MB sin comprimir por defecto, configurable en el servidor (el caso normal son ~30 MB)
@@ -31,7 +31,7 @@ shell.
 
 ## PUT|POST /api/upload
 
-Sube un CSV y dispara los correos. `PUT` es la forma recomendada; `POST` se acepta igual.
+Sube un CSV o un .xlsx y dispara los correos. `PUT` es la forma recomendada; `POST` se acepta igual.
 
 ### Cabeceras
 
@@ -39,7 +39,7 @@ Sube un CSV y dispara los correos. `PUT` es la forma recomendada; `POST` se acep
 |---|---|---|---|
 | `X-Api-Key` | sí | `k3y...` | Clave del servicio |
 | `X-Correos` | sí | `uno@comex.care;dos@transportesvata.com` | Destinatarios del link. Separados por coma o punto y coma. Máximo 50; se normalizan a minúsculas y se deduplican. **Solo se aceptan dominios autorizados** (ver abajo) |
-| `X-Nombre` | no | `ventas_marzo.csv` | Nombre que se verá en el portal. Se sanea y se guarda en mayúsculas; si falta, `ARCHIVO.CSV` |
+| `X-Nombre` | no | `ventas_marzo.csv` | Nombre que se verá en el portal. Se sanea y se guarda en mayúsculas; la extensión la decide el contenido (`.CSV` o `.XLSX`). Si falta, `ARCHIVO` con la extensión del tipo |
 
 ### Dominios autorizados
 
@@ -54,11 +54,17 @@ vacía significa que no se acepta ningún destinatario.
 
 ### Cuerpo
 
-El CSV **crudo** en el cuerpo de la petición, con `Content-Type: text/csv`. Nada de
-`multipart/form-data`: no hay campos de formulario, solo el archivo.
+El archivo **crudo** en el cuerpo de la petición. Nada de `multipart/form-data`: no hay campos
+de formulario, solo el archivo.
 
-El archivo debe ser el **CSV sin comprimir**. Si ya viene en gzip se rechaza con
-`csv_ya_comprimido`; el servidor comprime.
+- **CSV:** `Content-Type: text/csv`, sin comprimir. Si ya viene en gzip se rechaza con
+  `csv_ya_comprimido`; el servidor lo comprime y lo guarda como `.gz`.
+- **Excel:** `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+  Debe ser `.xlsx` (libro moderno). El `.xls` antiguo se rechaza con `formato_no_soportado`, y un
+  libro con macros con `xlsx_con_macros`. El `.xlsx` se guarda tal cual (ya viene comprimido).
+
+El tipo se detecta por el **contenido**, no por el nombre: un CSV con `X-Nombre: reporte.xlsx`
+sigue siendo CSV y se descarga como `.CSV.gz`.
 
 ### Ejemplo con curl
 
@@ -115,6 +121,7 @@ else:
   "ok": true,
   "id": 42,
   "nombre": "VENTAS_MARZO.CSV",
+  "tipo": "csv",
   "bytes": 31457299,
   "bytes_gz": 4399307,
   "sha256": "938b393a…5330",
@@ -129,14 +136,16 @@ else:
 | Campo | Descripción |
 |---|---|
 | `id` | Identificador interno del archivo |
-| `nombre` | Nombre visible, en MAYÚSCULAS y con extensión `.CSV` |
-| `bytes` | Tamaño del CSV original |
-| `bytes_gz` | Tamaño del `.gz` que se sirve en la descarga |
-| `sha256` | SHA-256 del **CSV original** (el que se subió, no el `.gz`) |
+| `nombre` | Nombre visible, en MAYÚSCULAS y con extensión `.CSV` o `.XLSX` |
+| `tipo` | `csv` o `xlsx`, detectado por el contenido |
+| `bytes` | Tamaño del archivo original |
+| `bytes_gz` | Bytes que ocupa en disco (para CSV, el `.gz`; para XLSX, el mismo tamaño del original) |
+| `sha256` | SHA-256 del **archivo original** (el que se subió, no el `.gz`) |
 | `expira_en` | Fecha en que el archivo deja de estar disponible (90 días) |
 | `link_expira_en` | Fecha en que el link del correo deja de funcionar (30 días). Después se entra por el portal con el usuario |
 | `link` | Link directo. Contiene el token: es un secreto, no se registra ni se comparte |
-| `csv` | Resumen de la validación: líneas de datos, columnas y separador detectado |
+| `csv` | Solo en CSV: resumen de la validación, con líneas, columnas y separador detectado |
+| `xlsx` | Solo en XLSX: `hojas` y `entradas` (partes del libro) |
 | `envios` | Correos que salieron (`ok`) y que fallaron (`error`) |
 | `aviso` | Solo aparece si `envios.ok` es 0: el archivo quedó guardado y ningún correo salió |
 
@@ -164,7 +173,7 @@ cliente debe comparar `codigo`; el texto puede cambiar.
 | `destinatarios_invalidos` | 422 | `X-Correos` vacía, con un correo inválido o con más de 50 |
 | `destinatario_no_permitido` | 422 | `X-Correos` trae una dirección de un dominio no autorizado |
 | `cuota_excedida` | 507 | El total de archivos vivos ya ocupa la cuota de disco del servidor. Se libera al vencer los archivos |
-| `falta_archivo` | 422 | No llegó el CSV en el cuerpo (o vino como `multipart/form-data`) |
+| `falta_archivo` | 422 | No llegó el archivo en el cuerpo (o vino como `multipart/form-data`) |
 | `archivo_vacio` | 422 | El archivo pesa 0 bytes |
 | `archivo_muy_grande` | 413 | Excede el máximo configurado (64 MB por defecto) o el límite del servidor |
 | `archivo_incompleto` | 422 | Se leyó menos de lo que declaraba el archivo; reintentar |
@@ -175,6 +184,10 @@ cliente debe comparar `codigo`; el texto puede cambiar.
 | `csv_vacio` | 422 | Sin datos, o solo líneas en blanco |
 | `csv_columnas_inconsistentes` | 422 | Alguna línea no tiene el mismo número de columnas que la primera |
 | `csv_demasiadas_columnas` | 422 | Más de 500 columnas |
+| `archivo_ilegible` | 422 | No se pudo abrir el archivo recibido |
+| `formato_no_soportado` | 422 | Ni CSV ni `.xlsx` (por ejemplo, un `.xls` antiguo) |
+| `xlsx_invalido` | 422 | El ZIP no es un libro de Excel válido (sin hojas o sin índice) |
+| `xlsx_con_macros` | 422 | El libro trae macros u objetos incrustados; se pide guardarlo sin macros |
 | `error_interno` | 500 | Fallo al guardar (BD o disco). Reintentar más tarde |
 
 En `429` la respuesta incluye además `reintentar_en` (segundos) y la cabecera `Retry-After`.
@@ -194,14 +207,25 @@ La API revisa el contenido antes de guardarlo, en una sola lectura:
 No se impone la codificación: los CSV en latin1 se aceptan tal cual. La primera línea se toma
 como encabezado y cuenta para el total de `lineas`; las líneas en blanco no cuentan.
 
+## Validación del XLSX
+
+Un `.xlsx` es un ZIP (OOXML). El servidor **no extrae las hojas**: abre el índice y revisa:
+
+1. Que el ZIP abra y traiga `[Content_Types].xml` y `xl/workbook.xml`.
+2. Que declare al menos una hoja.
+3. Que no traiga macros ni objetos incrustados (`vbaProject`, `activeX`, `oleObject`).
+
+El libro se guarda tal cual, sin recomprimir. El destinatario lo descarga como `.xlsx` con su
+MIME de Excel.
+
 ## Notas de operación
 
 - **Vigencia:** el link del correo dura **30 días**; el archivo se conserva **90 días**. Pasados
   los 30, `/d/<token>` responde `404` y solo se llega por el portal con el usuario. A los 90 el
-  `.gz` se borra del disco con la purga diaria.
-- **Descarga:** el link (`/d/<token>`) descarga sin login, como `application/gzip` con
-  `Content-Disposition: attachment`. El `.gz` descomprimido es byte por byte el CSV subido:
-  compárelo con `sha256`.
+  archivo se borra del disco con la purga diaria.
+- **Descarga:** el link (`/d/<token>`) descarga sin login. Un CSV llega como `application/gzip`
+  (`NOMBRE.CSV.gz`, que descomprimido es byte por byte el original: compárelo con `sha256`). Un
+  XLSX llega con su MIME de Excel y su nombre `.XLSX`, sin comprimir.
 - **Reintentos:** la operación **no es idempotente**. Reintentar una subida que ya devolvió
   `201` crea otro archivo y manda otros correos. Reintente solo si la respuesta fue de error.
 - **Tiempo:** una carga de 30 MB tarda unos segundos (validación + compresión). Use un timeout

@@ -186,10 +186,10 @@ function sinCrlf(string $valor): string
  * Avisa a cada destinatario y deja el resultado en `envio` (salud del panel).
  * Una sola sesión SMTP para toda la tanda; se reconecta solo si se cae.
  */
-function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombre, int $bytes, string $link, string $expiraLink, string $expira): array
+function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombre, int $bytes, string $tipo, string $link, string $expiraLink, string $expira): array
 {
     $cfg = config()['correo'];
-    [$texto, $html] = cuerpoAviso($nombre, $link, $expiraLink, $expira, $bytes);
+    [$texto, $html] = cuerpoAviso($nombre, $link, $expiraLink, $expira, $bytes, $tipo);
     $cliente = new ClienteSmtp($cfg);
     $ok = 0;
     $conError = 0;
@@ -235,7 +235,7 @@ function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombr
     return ['ok' => $ok, 'error' => $conError];
 }
 
-function cuerpoAviso(string $nombre, string $link, string $expiraLink, string $expira, int $bytes): array
+function cuerpoAviso(string $nombre, string $link, string $expiraLink, string $expira, int $bytes, string $tipo = 'csv'): array
 {
     $fechaLink = fechaCorta($expiraLink);
     $fechaArchivo = fechaCorta($expira);
@@ -247,7 +247,7 @@ function cuerpoAviso(string $nombre, string $link, string $expiraLink, string $e
         . "con su usuario de siempre, hasta el {$fechaArchivo}.\n\n"
         . "ARB-A · servicios.care\n";
 
-    return [$texto, avisoHtml($nombre, $link, $expiraLink, $expira, $bytes)];
+    return [$texto, avisoHtml($nombre, $link, $expiraLink, $expira, $bytes, $tipo)];
 }
 
 function mensajeMime(array $cfg, string $para, string $nombre, string $texto, string $html): string

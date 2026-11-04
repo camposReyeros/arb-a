@@ -49,6 +49,7 @@ $respuesta = <<<'TXT'
 {
   "ok": true,
   "id": 42,
+  "tipo": "csv",
   "nombre": "VENTAS_MARZO.CSV",
   "bytes": 31457299,
   "bytes_gz": 4399307,
@@ -79,15 +80,17 @@ foreach (ARB_A_ERRORES as $codigo => [$estado, $mensaje]) {
 <body>
 <main>
   <h1>API de carga</h1>
-  <p class="sub">Sube un CSV, se comprime y se avisa por correo con un link de 30 días (el archivo se guarda 90).</p>
+  <p class="sub">Sube un CSV o un libro de Excel (<span class="snippet">.xlsx</span>) y se avisa por
+    correo con un link de 30 días (el archivo se guarda 90).</p>
 
   <div class="tarjeta">
     <p><strong>Endpoint</strong> <span class="snippet">PUT /api/upload</span>
       (<span class="snippet">POST</span> también se acepta)</p>
     <p><strong>Autenticación</strong> <span class="snippet">X-Api-Key</span> — sin clave no se escribe nada.
       La clave se genera en el <strong>panel de administración</strong> (sección API-Key) y se muestra una sola vez.</p>
-    <p><strong>Cuerpo</strong> el CSV crudo en el cuerpo, <span class="snippet">Content-Type: text/csv</span>,
-      sin multipart. Máximo 64 MB por defecto (configurable en el servidor).
+    <p><strong>Cuerpo</strong> el archivo crudo en el cuerpo, sin multipart: el CSV con
+      <span class="snippet">Content-Type: text/csv</span>, o el <span class="snippet">.xlsx</span> con su MIME.
+      Máximo 64 MB por defecto (configurable en el servidor). El tipo se decide por el contenido.
       <span class="snippet">X-Nombre</span> es opcional y solo cambia el nombre visible.</p>
     <p><strong>Destinatarios</strong> <span class="snippet">X-Correos</span> separados por coma o punto y coma, máximo 50.
       Son la regla de acceso: cada uno ve el archivo en el portal.</p>
@@ -103,6 +106,9 @@ foreach (ARB_A_ERRORES as $codigo => [$estado, $mensaje]) {
 
   <h2>Ejemplo con Python</h2>
   <pre class="codigo"><?= e($python) ?></pre>
+  <p>Para un libro de Excel es igual, cambiando el archivo y el
+    <span class="snippet">Content-Type</span> a
+    <span class="snippet">application/vnd.openxmlformats-officedocument.spreadsheetml.sheet</span>.</p>
 
   <h2>Respuesta 201</h2>
   <pre class="codigo"><?= e($respuesta) ?></pre>
@@ -121,7 +127,8 @@ foreach (ARB_A_ERRORES as $codigo => [$estado, $mensaje]) {
     </table>
   </div>
 
-  <h2>Validación del CSV</h2>
+  <h2>Validación del archivo</h2>
+  <p><strong>CSV</strong></p>
   <ul>
     <li>Se rechaza gzip: se sube el CSV tal cual.</li>
     <li>Se rechazan binarios (bytes NUL).</li>
@@ -130,6 +137,13 @@ foreach (ARB_A_ERRORES as $codigo => [$estado, $mensaje]) {
     <li>Separador detectado: coma, punto y coma, tabulador o pipe. Se informa en
       <span class="snippet">csv.separador</span>.</li>
     <li>La codificación no se impone: latin1 se acepta.</li>
+  </ul>
+  <p><strong>Excel (.xlsx)</strong></p>
+  <ul>
+    <li>Debe ser un libro OOXML con al menos una hoja; se informa en <span class="snippet">xlsx.hojas</span>.</li>
+    <li>Se rechazan los libros con macros (<span class="snippet">vbaProject</span>, ActiveX u OLE).</li>
+    <li>El formato viejo <span class="snippet">.xls</span> no se acepta: se convierte a <span class="snippet">.xlsx</span>.</li>
+    <li>El libro se guarda tal cual (sin recomprimir) y se sirve con su MIME propio.</li>
   </ul>
 
   <p class="pie">

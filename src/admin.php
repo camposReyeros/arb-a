@@ -173,7 +173,7 @@ function rutaEnDeposito(string $ruta): ?string
 }
 
 /**
- * Purga manual: borra el .gz y marca `borrado_en`. Nunca borra la fila (la estadística queda).
+ * Purga manual: borra el fichero (CSV comprimido o .xlsx) y marca `borrado_en`. Nunca borra la fila (la estadística queda).
  * Un archivo cuyo fichero ya no está se marca igual: si no, se reintenta para siempre.
  *
  * @return array{borrados: int, sin_fichero: int}

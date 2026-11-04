@@ -1,6 +1,6 @@
 # AGENTS.md — arb-a
 
-Portal de entrega de archivos CSV. Dominio: **arb-a.servicios.care**.
+Portal de entrega de archivos CSV y Excel (`.xlsx`). Dominio: **arb-a.servicios.care**.
 Reemplaza el envío de CSV como adjunto en correo: se sube por API, se comprime y se
 entrega por link directo con token.
 
@@ -18,13 +18,15 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `src/bd.php` | PDO único. |
 | `src/usuarios.php` | Usuarios: login de ipro, derivado, sincronización y bitácora. |
 | `src/auth.php` | Login usuario + clave con el derivado de ipro, niveles y throttle. |
-| `src/archivos.php` | Subida, compresión gzip en streaming, token, consultas por correo, purga. |
+| `src/archivos.php` | Subida (CSV o `.xlsx`), compresión gzip en streaming o copia, token, consultas por correo, purga. |
+| `src/xlsx.php` | Validación del libro `.xlsx` con `ZipArchive`: hojas, entradas y rechazo de macros. |
+| `src/entrega.php` | Escritura en disco: compresión gzip o copia con sha256, y cabeceras de descarga por tipo. |
 | `src/correo.php` | SMTP y registro en `envio` (salud del panel). |
-| `src/csv.php` | Validación del CSV en una pasada (`fgetcsv`), nombre en MAYÚSCULAS y cabecera `X-Correos`. |
+| `src/csv.php` | Validación del CSV en una pasada (`fgetcsv`), nombre visible en MAYÚSCULAS (extensión según tipo) y cabecera `X-Correos`. |
 | `src/errores.php` | Catálogo `codigo → [status, mensaje]` de la API. Es el contrato con el cliente. |
 | `src/limite.php` | Límite de cargas por IP: ventana móvil de una hora sobre `limite_carga`. |
 | `src/apikey.php` | API-Key única: se guarda su sha256 en `apikey`; rotación desde el panel. |
-| `src/cuota.php` | Cuota global de disco (2 GB por defecto) sobre la suma de `.gz` vivos. |
+| `src/cuota.php` | Cuota global de disco (2 GB por defecto) sobre la suma de `bytes_gz` (espacio real en disco). |
 | `public/api/index.php` | Documentación viva en `/api`; la tabla de errores sale de `src/errores.php`. |
 | `public/api/openapi.yaml` | Contrato OpenAPI 3.1, servido tal cual. |
 | `docs/api/upload.md` | Documentación de referencia (estilo abuseipdb) para quien integra. |
@@ -75,17 +77,24 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   `transportesvata.com`, `comex.care`, `comexpintacolor.com`. Comparación exacta, sin
   subdominios. Lista vacía = nadie. La API no es un relay abierto.
 - **El disco tiene cuota global** (`archivos.cuota_bytes`, 2 GB): suma de `bytes_gz` de los
-  archivos vivos, ni vencidos ni borrados. Se revisa antes de comprimir y se confirma dentro de
-  la transacción con un lock global. Se libera sola al vencer los archivos.
+  archivos vivos, ni vencidos ni borrados. `bytes_gz` son los bytes que el archivo ocupa en
+  disco: el `.gz` para CSV y el `.xlsx` tal cual (no se recomprime). Se revisa antes de
+  comprimir y se confirma dentro de la transacción con un lock global. Se libera sola al
+  vencer los archivos.
 - **Cada IP tiene 100 cargas aceptadas por hora** (ventana móvil, `limite_carga`). Se revisa
   antes de trabajar (barato) y se vuelve a revisar **dentro de la transacción del guardado**,
   con un lock por IP: dos peticiones simultáneas no pueden colarse contando a la vez. La cuota
   se reserva en esa misma transacción, así que un archivo inválido no la consume.
   Sin IP identificable no hay cuota (no se puede castigar a todos en la misma cubeta).
-- **La carga es cuerpo crudo.** `PUT` (o `POST`) con el CSV tal cual y `Content-Type: text/csv`;
-  sin `multipart/form-data`. El nombre visible viene de `X-Nombre` (opcional, default
-  `ARCHIVO.CSV`) porque el cuerpo no lleva `filename`. Se vuelca a un temporal por bloques con
+- **La carga es cuerpo crudo.** `PUT` (o `POST`) con el archivo tal cual: CSV con
+  `Content-Type: text/csv` o libro `.xlsx` con su MIME; nada de `multipart/form-data`.
+  El nombre visible viene de `X-Nombre` (opcional, default `ARCHIVO` con la extensión del
+  tipo) porque el cuerpo no lleva `filename`. Se vuelca a un temporal por bloques con
   tope `api.max_bytes`, así que el `post_max_size` de PHP no aplica a `PUT`.
+- **El tipo se detecta por el contenido**, no por el nombre: firma ZIP de OOXML → `xlsx`
+  (se guarda tal cual, sin recomprimir, y se sirve con su MIME propio); lo demás → `csv`
+  (se comprime a `.gz`). Un `.xls` binario (firma OLE) se rechaza con `formato_no_soportado`,
+  y un libro con macros (`vbaProject`, ActiveX, OLE o `macroEnabled`) con `xlsx_con_macros`.
 - **Los errores de la API tienen `codigo` estable** (`src/errores.php`). El cliente compara
   `codigo`; el mensaje puede cambiar. La documentación de `/api` se genera del mismo catálogo.
 - **Hay una sola API-Key.** Vive en `apikey` como `sha256` y se regenera desde el panel
@@ -122,6 +131,8 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 - Tablas: `usuario`, `archivo`, `archivo_destinatario`, `evento_acceso`, `envio`,
   `intento_login`, `limite_carga`, `apikey`, `bitacora` (append-only por trigger).
 - El esquema se aplica solo al crear el volumen (`docker-entrypoint-initdb.d`).
+- `archivo.tipo` (`csv` o `xlsx`) se decide por el contenido; `bytes_gz` son los bytes en
+  disco (`.gz` en CSV, el libro tal cual en `.xlsx`).
 - Cambios posteriores: `db/migraciones/000X_*.sql` a mano.
 
 ## Seguridad
@@ -161,6 +172,8 @@ Pruebas puras (sin BD), corren en el mismo contenedor:
 docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/csv_test.php
 docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/vistas_test.php
 docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/correo_test.php
+# xlsx_test necesita ext-zip: usa la imagen de la app, no php:cli pelado.
+docker run --rm -v "$PWD":/app -w /app arb-a-app:2 php tests/xlsx_test.php
 ```
 
 El humo con BD (levantar `db-arb-a`, aplicar `db/schema.sql`, subir un CSV y descargarlo)
@@ -185,6 +198,10 @@ BD solo quede el sha256 y que la bitácora registre el cambio. Restaura la fila 
 
 `tests/correo_test.php` cubre el correo de aviso: estilo en línea, sin JavaScript, sin fuentes ni
 imágenes externas, escape del nombre, tamaño y fechas del enlace y del archivo.
+
+`tests/xlsx_test.php` cubre el libro `.xlsx` (requiere `ext-zip`): ZIP válido con hojas, ZIP sin
+workbook, macros por `macroEnabled` y por `vbaProject.bin`, firma OLE de `.xls`, nombre visible y
+MIME/nombre de descarga por tipo.
 
 ## Despliegue
 
@@ -220,7 +237,7 @@ imágenes externas, escape del nombre, tamaño y fechas del enlace y del archivo
 
 | Término | Significado |
 |---|---|
-| `archivo` | CSV subido, ya comprimido en gzip |
+| `archivo` | Archivo subido: CSV (comprimido en gzip) o `.xlsx` (tal cual) |
 | `destinatario` | correo al que se le envió el link; define qué ve en la UI |
 | `usuario` | espejo de ipro: `externo_id` numérico + `token_hash`; se entra con el usuario de ipro (`JOSE_13010`) |
 | `token` | secreto del link directo `/d/<token>`; vence a los 30 días |

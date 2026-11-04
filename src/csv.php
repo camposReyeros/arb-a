@@ -16,12 +16,12 @@ const ARB_A_MAX_LINEA = 1 << 20;
 
 /**
  * Nombre visible: base del original en MAYÚSCULAS, sin rutas ni caracteres raros.
- * Siempre termina en .CSV aunque el origen venga sin extensión.
+ * La extensión la decide el tipo real del contenido, no el nombre recibido.
  */
-function nombreVisible(string $original): string
+function nombreVisible(string $original, string $tipo = 'csv'): string
 {
     $base = basename(str_replace('\\', '/', trim($original)));
-    $base = preg_replace('/\.(csv|txt)$/i', '', $base) ?? $base;
+    $base = preg_replace('/\.(csv|txt|xlsx|xls)$/i', '', $base) ?? $base;
     $base = preg_replace('/[^A-Za-z0-9._-]+/', '_', $base) ?? $base;
     $base = trim($base, '._-');
 
@@ -29,7 +29,7 @@ function nombreVisible(string $original): string
         $base = 'ARCHIVO';
     }
 
-    return mb_strtoupper(mb_substr($base, 0, 120)) . '.CSV';
+    return mb_strtoupper(mb_substr($base, 0, 120)) . ($tipo === 'xlsx' ? '.XLSX' : '.CSV');
 }
 
 /**

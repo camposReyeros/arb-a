@@ -10,11 +10,13 @@ require_once __DIR__ . '/../src/bootstrap.php';
  * imágenes externas ni fuentes descargables (Gmail y Outlook las recortan). El
  * diseño se sostiene con tablas y anchos fijos de 600 px.
  */
-function avisoHtml(string $nombre, string $link, string $expiraLink, string $expira, int $bytes): string
+function avisoHtml(string $nombre, string $link, string $expiraLink, string $expira, int $bytes, string $tipo = 'csv'): string
 {
     $fechas = avisoFechas($expiraLink);
     $fechaArchivo = avisoFechas($expira)['corta'];
     $tamano = avisoTamano($bytes);
+    $formato = $tipo === 'xlsx' ? 'XLSX' : 'CSV';
+    $etiqueta = $tipo === 'xlsx' ? 'libro de Excel' : 'CSV';
 
     $titulo = e($nombre);
     $url = e($link);
@@ -46,7 +48,7 @@ function avisoHtml(string $nombre, string $link, string $expiraLink, string $exp
         . '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:18px;"><tr>'
         . '<td width="48" height="48" align="center" valign="middle" '
         . 'style="width:48px;height:48px;background:#d3e3fd;border-radius:12px;'
-        . 'font:700 13px Arial,Helvetica,sans-serif;color:#0b57d0;">CSV</td>'
+        . 'font:700 13px Arial,Helvetica,sans-serif;color:#0b57d0;">' . $formato . '</td>'
         . '</tr></table>'
         . '<div style="font:600 11px Arial,Helvetica,sans-serif;letter-spacing:1px;'
         . 'text-transform:uppercase;color:#0b57d0;">Archivo disponible</div>'
@@ -60,7 +62,7 @@ function avisoHtml(string $nombre, string $link, string $expiraLink, string $exp
         . 'style="margin:20px 0;background:#f8f9fa;border:1px solid #eceef3;border-radius:12px;">'
         . '<tr><td style="padding:12px 14px;font:400 13px/1.7 Arial,Helvetica,sans-serif;color:#444746;">'
         . 'Tamaño: <strong style="color:#1f1f1f;">' . e($tamano) . '</strong><br>'
-        . 'Formato: <strong style="color:#1f1f1f;">CSV</strong><br>'
+        . 'Formato: <strong style="color:#1f1f1f;">' . $formato . '</strong><br>'
         . 'Enlace vigente: <strong style="color:#1f1f1f;">' . $dias . ' días</strong>'
         . '</td></tr></table>'
 
