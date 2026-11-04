@@ -1,7 +1,8 @@
 # ARB-A · API de carga
 
 Carga un CSV y avisa por correo a los destinatarios indicados. Cada destinatario recibe un
-link directo con vigencia de **90 días**.
+link directo con vigencia de **30 días**; el archivo se conserva 90 días y se consulta desde el
+portal.
 
 - **URL base:** `https://arb-a.servicios.care`
 - **Formato:** siempre JSON (`application/json`)
@@ -17,8 +18,13 @@ una clave equivocada, la respuesta es `401` y **no se escribe nada**.
 X-Api-Key: <clave>
 ```
 
-La clave se entrega una sola vez por un canal aparte. No se pasa por query string ni por el
-cuerpo: quedaría en logs de proxy y en historiales de shell.
+Hay **una sola clave** para todo el servicio. Se genera desde el panel de administración
+(`/admin.php`, sección *API-Key*), que la muestra **una sola vez**; no se puede releer después,
+solo regenerar. Al regenerarla, la anterior deja de funcionar de inmediato: actualiza la
+integración antes de cerrar esa página.
+
+No se pasa por query string ni por el cuerpo: quedaría en logs de proxy y en historiales de
+shell.
 
 ---
 
@@ -56,7 +62,7 @@ El archivo debe ser el **CSV sin comprimir**. Si ya viene en gzip se rechaza con
 ```bash
 curl -X POST https://arb-a.servicios.care/api/upload \
   -H "X-Api-Key: $ARB_A_APIKEY" \
-  -H "X-Correos: uno@servicios.care;dos@servicios.care" \
+  -H "X-Correos: uno@comex.care;dos@transportesvata.com" \
   -F "archivo=@ventas_marzo.csv;type=text/csv"
 ```
 
@@ -73,7 +79,7 @@ with open("ventas_marzo.csv", "rb") as fh:
         API,
         headers={
             "X-Api-Key": os.environ["ARB_A_APIKEY"],
-            "X-Correos": "uno@servicios.care;dos@servicios.care",
+            "X-Correos": "uno@comex.care;dos@transportesvata.com",
         },
         files={"archivo": ("ventas_marzo.csv", fh, "text/csv")},
         timeout=180,

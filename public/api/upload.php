@@ -13,6 +13,7 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../../src/archivos.php';
+require_once __DIR__ . '/../../src/apikey.php';
 
 cabecerasDeSeguridad();
 header('Content-Type: application/json; charset=utf-8');
@@ -39,12 +40,12 @@ try {
         throw new ErrorDeCarga('metodo_no_permitido');
     }
 
-    $claveApi = (string) config()['api']['key'];
-    if ($claveApi === '') {
+    $estadoClave = apikeyComprobar((string) ($_SERVER['HTTP_X_API_KEY'] ?? ''));
+    if ($estadoClave === 'error' || $estadoClave === 'sin_configurar') {
         // Nunca se revela qué variable falta: eso es información de despliegue.
         throw new ErrorDeCarga('servicio_no_disponible');
     }
-    if (!hash_equals($claveApi, (string) ($_SERVER['HTTP_X_API_KEY'] ?? ''))) {
+    if ($estadoClave !== 'ok') {
         throw new ErrorDeCarga('apikey_invalida');
     }
 

@@ -23,6 +23,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `src/csv.php` | Validación del CSV en una pasada (`fgetcsv`), nombre en MAYÚSCULAS y cabecera `X-Correos`. |
 | `src/errores.php` | Catálogo `codigo → [status, mensaje]` de la API. Es el contrato con el cliente. |
 | `src/limite.php` | Límite de cargas por IP: ventana móvil de una hora sobre `limite_carga`. |
+| `src/apikey.php` | API-Key única: se guarda su sha256 en `apikey`; rotación desde el panel. |
 | `src/cuota.php` | Cuota global de disco (2 GB por defecto) sobre la suma de `.gz` vivos. |
 | `public/api/index.php` | Documentación viva en `/api`; la tabla de errores sale de `src/errores.php`. |
 | `public/api/openapi.yaml` | Contrato OpenAPI 3.1, servido tal cual. |
@@ -80,6 +81,9 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   Sin IP identificable no hay cuota (no se puede castigar a todos en la misma cubeta).
 - **Los errores de la API tienen `codigo` estable** (`src/errores.php`). El cliente compara
   `codigo`; el mensaje puede cambiar. La documentación de `/api` se genera del mismo catálogo.
+- **Hay una sola API-Key.** Vive en `apikey` como `sha256` y se regenera desde el panel
+  (`accion=regenerar_apikey`); la clave nueva se muestra **una sola vez** y la anterior deja de
+  valer al instante. Mientras no exista fila se usa `ARB_A_APIKEY` (arranque); luego manda la BD.
 - **Todo acceso se registra** en `evento_acceso` con `via`: `ui` o `directo`. Es la
   materia prima de las estadísticas del panel.
 - **El portal no reutiliza el token del correo** (en BD solo hay `token_hash`). La descarga
@@ -109,7 +113,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 
 - PostgreSQL 16, DSN `pgsql:`.
 - Tablas: `usuario`, `archivo`, `archivo_destinatario`, `evento_acceso`, `envio`,
-  `intento_login`, `limite_carga`, `bitacora` (append-only por trigger).
+  `intento_login`, `limite_carga`, `apikey`, `bitacora` (append-only por trigger).
 - El esquema se aplica solo al crear el volumen (`docker-entrypoint-initdb.d`).
 - Cambios posteriores: `db/migraciones/000X_*.sql` a mano.
 
@@ -117,7 +121,8 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 
 - Nada de archivos dentro del docroot: `archivo.ruta` vive en `/var/lib/arb-a/archivos`,
   modo `0600`, servido solo por PHP tras validar token.
-- API-Key comparada con `hash_equals`, tomada de `ARB_A_APIKEY` (env, nunca en git).
+- API-Key comparada con `hash_equals`; se guarda solo su `sha256` en `apikey` y se rota desde
+  el panel. `ARB_A_APIKEY` es solo el respaldo de arranque cuando aún no hay fila.
 - Login con throttle: 10 fallos en 15 min bloquean 15 min por usuario+IP.
 - Sesión PHP con `HttpOnly`, `SameSite=Lax`, `secure` cuando hay HTTPS. Vigencia:
   **30 min de inactividad y 8 h de tope absoluto**.
@@ -166,6 +171,9 @@ throttle y el login. Es el gate que detecta errores de binding que `php -l` no v
 
 `tests/admin_smoke.php` cubre el panel contra la misma base (`ARB_A_DIR` debe apuntar al
 depósito): salud, estadísticas, filtro "nunca abierto", purga con fichero y sin él, y bitácora.
+
+`tests/apikey_test.php` cubre la clave única: regeneración, invalidación de la anterior, que en
+BD solo quede el sha256 y que la bitácora registre el cambio. Restaura la fila previa al terminar.
 
 ## Despliegue
 

@@ -7,10 +7,13 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../src/admin.php';
+require_once __DIR__ . '/../src/apikey.php';
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../vistas/layout.php';
+require_once __DIR__ . '/../vistas/admin_apikey.php';
 
 cabecerasDeSeguridad();
+header('Cache-Control: no-store');
 
 $usuario = requerirAdmin();
 
@@ -28,10 +31,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mensaje .= ' ' . $resultado['sin_fichero'] . ' ya no tenían fichero en disco.';
         }
         aviso($mensaje, $resultado['borrados'] > 0 ? 'ok' : 'error');
+    } elseif ((string) ($_POST['accion'] ?? '') === 'regenerar_apikey') {
+        if (isset($_SESSION['apikey_nueva'])) {
+            // Evita perder una clave que aún no se mostró (doble envío o dos pestañas).
+            aviso('Ya hay una clave sin copiar. Recarga la página para verla antes de regenerar otra.', 'error');
+        } else {
+            $_SESSION['apikey_nueva'] = regenerarApikey((int) $usuario['id'], (string) $usuario['externo_id']);
+            aviso('API-Key regenerada. Cópiala antes de salir: no se vuelve a mostrar.', 'ok');
+        }
     }
 
     redirigir('/admin.php');
 }
+
+$apikeyNueva = isset($_SESSION['apikey_nueva']) ? (string) $_SESSION['apikey_nueva'] : null;
+unset($_SESSION['apikey_nueva']);
+$apikey = apikeyInfo();
 
 $filtros = [
     'nombre' => (string) ($_GET['nombre'] ?? ''),
@@ -223,6 +238,8 @@ htmlInicio('Administración', $usuario);
   </form>
   <?php endif; ?>
 </section>
+
+<?php htmlApikey($apikeyNueva, $apikey); ?>
 
 <script src="/assets/portal.js" defer></script>
 <?php

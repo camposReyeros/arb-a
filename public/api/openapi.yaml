@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     Carga un CSV, lo comprime y envía por correo un link directo a los destinatarios
-    indicados. El link y el archivo viven 90 días.
+    indicados. El link vive 30 días; el archivo se conserva 90.
 
     Los errores traen un `codigo` estable: el cliente compara ese campo, no el texto.
   contact:
@@ -43,7 +43,7 @@ paths:
             un usuario ve el archivo si su correo está aquí.
           schema:
             type: string
-          example: uno@servicios.care;dos@servicios.care
+          example: uno@comex.care;dos@transportesvata.com
       requestBody:
         required: true
         content:

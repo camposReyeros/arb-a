@@ -15,7 +15,7 @@ header('Content-Type: text/html; charset=utf-8');
 $curl = <<<'TXT'
 curl -X POST https://arb-a.servicios.care/api/upload \
   -H "X-Api-Key: $ARB_A_APIKEY" \
-  -H "X-Correos: uno@servicios.care;dos@servicios.care" \
+  -H "X-Correos: uno@comex.care;dos@transportesvata.com" \
   -F "archivo=@ventas_marzo.csv;type=text/csv"
 TXT;
 
@@ -28,7 +28,7 @@ with open("ventas_marzo.csv", "rb") as fh:
         "https://arb-a.servicios.care/api/upload",
         headers={
             "X-Api-Key": os.environ["ARB_A_APIKEY"],
-            "X-Correos": "uno@servicios.care;dos@servicios.care",
+            "X-Correos": "uno@comex.care;dos@transportesvata.com",
         },
         files={"archivo": ("ventas_marzo.csv", fh, "text/csv")},
         timeout=180,
@@ -75,11 +75,12 @@ foreach (ARB_A_ERRORES as $codigo => [$estado, $mensaje]) {
 <body>
 <main>
   <h1>API de carga</h1>
-  <p class="sub">Sube un CSV, se comprime y se avisa por correo con un link de 90 días.</p>
+  <p class="sub">Sube un CSV, se comprime y se avisa por correo con un link de 30 días (el archivo se guarda 90).</p>
 
   <div class="tarjeta">
     <p><strong>Endpoint</strong> <span class="snippet">POST /api/upload</span></p>
-    <p><strong>Autenticación</strong> <span class="snippet">X-Api-Key</span> — sin clave no se escribe nada.</p>
+    <p><strong>Autenticación</strong> <span class="snippet">X-Api-Key</span> — sin clave no se escribe nada.
+      La clave se genera en el <strong>panel de administración</strong> (sección API-Key) y se muestra una sola vez.</p>
     <p><strong>Cuerpo</strong> <span class="snippet">multipart/form-data</span>, campo <span class="snippet">archivo</span>,
       CSV sin comprimir, máximo 64 MB por defecto (configurable en el servidor).</p>
     <p><strong>Destinatarios</strong> <span class="snippet">X-Correos</span> separados por coma o punto y coma, máximo 50.

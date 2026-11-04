@@ -119,6 +119,15 @@ create table if not exists limite_carga (
 create index if not exists limite_carga_ip_fecha_idx on limite_carga (ip, creado_en desc);
 create index if not exists limite_carga_fecha_idx on limite_carga (creado_en desc);
 
+-- API-Key única del servicio de carga. Solo se guarda su sha256: no se puede releer.
+-- `creada_en` es la fecha de la última rotación.
+create table if not exists apikey (
+    id          smallint primary key default 1 check (id = 1),
+    hash        char(64) not null check (hash ~ '^[a-f0-9]{64}$'),
+    creada_en   timestamptz not null default now(),
+    creada_por  text
+);
+
 -- Bitácora administrativa append-only.
 create table if not exists bitacora (
     id          bigserial primary key,
