@@ -29,6 +29,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `public/api/openapi.yaml` | Contrato OpenAPI 3.1, servido tal cual. |
 | `docs/api/upload.md` | Documentación de referencia (estilo abuseipdb) para quien integra. |
 | `vistas/layout.php` | Helpers de presentación: `htmlInicio`/`htmlFin`, fechas, tamaños. |
+| `vistas/correo_aviso.php` | Plantilla del correo de aviso: HTML con estilo en línea, sin JS ni recursos externos. |
 | `public/index.php` | Raíz: manda a `/archivos.php` o `/login.php` según la sesión. |
 | `public/login.php` | Login del portal (usuario + clave, CSRF, throttle, un solo mensaje de error). |
 | `public/salir.php` | Cierre de sesión: solo POST con CSRF. |
@@ -159,6 +160,7 @@ Pruebas puras (sin BD), corren en el mismo contenedor:
 ```bash
 docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/csv_test.php
 docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/vistas_test.php
+docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/correo_test.php
 ```
 
 El humo con BD (levantar `db-arb-a`, aplicar `db/schema.sql`, subir un CSV y descargarlo)
@@ -180,6 +182,9 @@ depósito): salud, estadísticas, filtro "nunca abierto", purga con fichero y si
 
 `tests/apikey_test.php` cubre la clave única: regeneración, invalidación de la anterior, que en
 BD solo quede el sha256 y que la bitácora registre el cambio. Restaura la fila previa al terminar.
+
+`tests/correo_test.php` cubre el correo de aviso: estilo en línea, sin JavaScript, sin fuentes ni
+imágenes externas, escape del nombre, tamaño y fechas del enlace y del archivo.
 
 ## Despliegue
 

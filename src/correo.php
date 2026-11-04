@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/bd.php';
+require_once __DIR__ . '/../vistas/correo_aviso.php';
 
 /**
  * Envío SMTP sin dependencias externas.
@@ -185,10 +186,10 @@ function sinCrlf(string $valor): string
  * Avisa a cada destinatario y deja el resultado en `envio` (salud del panel).
  * Una sola sesión SMTP para toda la tanda; se reconecta solo si se cae.
  */
-function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombre, string $link, string $expiraLink, string $expira): array
+function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombre, int $bytes, string $link, string $expiraLink, string $expira): array
 {
     $cfg = config()['correo'];
-    [$texto, $html] = cuerpoAviso($nombre, $link, $expiraLink, $expira);
+    [$texto, $html] = cuerpoAviso($nombre, $link, $expiraLink, $expira, $bytes);
     $cliente = new ClienteSmtp($cfg);
     $ok = 0;
     $conError = 0;
@@ -234,26 +235,19 @@ function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombr
     return ['ok' => $ok, 'error' => $conError];
 }
 
-function cuerpoAviso(string $nombre, string $link, string $expiraLink, string $expira): array
+function cuerpoAviso(string $nombre, string $link, string $expiraLink, string $expira, int $bytes): array
 {
     $fechaLink = fechaCorta($expiraLink);
     $fechaArchivo = fechaCorta($expira);
     $texto = "Hola:\n\n"
-        . "El archivo {$nombre} ya está disponible en ARB-A.\n\n"
+        . "El archivo {$nombre} (" . avisoTamano($bytes) . ") ya está disponible en ARB-A.\n\n"
         . "Descárguelo aquí: {$link}\n\n"
         . "Este enlace estará vigente hasta el {$fechaLink}.\n"
-        . "Después podrá descargarlo desde el portal (https://arb-a.servicios.care) "
+        . "Después podrá descargarlo desde el portal (" . config()['url_base'] . ") "
         . "con su usuario de siempre, hasta el {$fechaArchivo}.\n\n"
         . "ARB-A · servicios.care\n";
 
-    $html = '<p>Hola:</p>'
-        . '<p>El archivo <strong>' . e($nombre) . '</strong> ya está disponible en ARB-A.</p>'
-        . '<p><a href="' . e($link) . '">Descargar archivo</a></p>'
-        . '<p>Este enlace estará vigente hasta el ' . e($fechaLink) . '. Después podrá descargarlo '
-        . 'desde el portal con su usuario de siempre, hasta el ' . e($fechaArchivo) . '.</p>'
-        . '<p style="color:#5f6368;font-size:12px">ARB-A · servicios.care</p>';
-
-    return [$texto, $html];
+    return [$texto, avisoHtml($nombre, $link, $expiraLink, $expira, $bytes)];
 }
 
 function mensajeMime(array $cfg, string $para, string $nombre, string $texto, string $html): string

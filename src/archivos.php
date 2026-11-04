@@ -107,7 +107,7 @@ function guardarSubida(string $rutaCsv, string $nombreOriginal, array $destinata
     }
 
     $link = rtrim((string) config()['url_base'], '/') . '/d/' . $token;
-    $envios = avisarDestinatarios($archivoId, $destinatarios, $nombre, $link, $expiraLink, $expira);
+    $envios = avisarDestinatarios($archivoId, $destinatarios, $nombre, $bytes, $link, $expiraLink, $expira);
 
     return [
         'id' => $archivoId,
