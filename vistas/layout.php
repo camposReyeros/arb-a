@@ -35,6 +35,20 @@ function fechaVisible(string $marca): string
     }
 }
 
+/** Fecha y hora, para los accesos del panel. */
+function fechaHoraVisible(?string $marca): string
+{
+    if ($marca === null || $marca === '') {
+        return '—';
+    }
+
+    try {
+        return (new DateTimeImmutable($marca))->format('d/m/Y H:i');
+    } catch (Throwable) {
+        return '—';
+    }
+}
+
 /** Días completos que le quedan a un archivo (0 si ya venció). */
 function diasRestantes(string $marca): int
 {
@@ -45,6 +59,20 @@ function diasRestantes(string $marca): int
     }
 
     return max(0, (int) ceil($restan / 86400));
+}
+
+/** ¿La marca ya pasó? Una fecha corrupta no tumba la pantalla. */
+function yaVencio(?string $marca): bool
+{
+    if ($marca === null || $marca === '') {
+        return false;
+    }
+
+    try {
+        return new DateTimeImmutable($marca) <= new DateTimeImmutable();
+    } catch (Throwable) {
+        return false;
+    }
 }
 
 function tamanoLegible(int $bytes): string

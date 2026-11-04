@@ -134,9 +134,33 @@ h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
 .aviso-ok { background: #e6f4ea; border-color: #b7dfc2; color: var(--exito); }
 
 /* Filtros */
-.filtros { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.filtros { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 .filtros input { flex: 1 1 260px; }
 .filtros select { flex: 0 0 190px; width: auto; }
+.filtros .check-filtro { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.filtros .check-filtro input { width: auto; flex: 0 0 auto; }
+
+/* Panel de administración */
+.seccion { margin-bottom: 34px; }
+.seccion h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.rejilla-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+.dato { display: flex; flex-direction: column; gap: 6px; }
+.dato-etiqueta { font-size: 12px; text-transform: uppercase; letter-spacing: .03em; color: var(--texto-suave); }
+.dato-valor { font-size: 24px; font-weight: 600; }
+.dato-pie { font-size: 13px; color: var(--texto-suave); }
+progress.uso { width: 100%; height: 8px; appearance: none; border: 0; }
+progress.uso::-webkit-progress-bar { background: var(--superficie); border-radius: 999px; border: 1px solid var(--borde); }
+progress.uso::-webkit-progress-value { background: var(--primario); border-radius: 999px; }
+progress.uso::-moz-progress-bar { background: var(--primario); border-radius: 999px; }
+.col-check { width: 40px; }
+.acciones-panel { display: flex; justify-content: flex-end; margin-top: 12px; }
+.boton-peligro { background: var(--error); }
+.boton-peligro:hover { background: #8c1d18; }
 
 /* Tabla */
 .tabla-caja {

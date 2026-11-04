@@ -33,6 +33,8 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `public/salir.php` | Cierre de sesión: solo POST con CSRF. |
 | `public/archivos.php` | "Mis archivos": tabla con buscador y filtro de vigencia. |
 | `public/archivo.php` | Descarga desde el portal; valida sesión y pertenencia (`via = 'ui'`). |
+| `public/admin.php` | Panel de administración: salud, estadísticas de uso y purga manual. Solo `admin`. |
+| `src/admin.php` | Consultas del panel: salud, uso por archivo/destinatario y purga. |
 | `public/assets/portal.css` | Tokens de Corporate Precision. Sin fuentes ni CDN externos. |
 | `public/assets/portal.js` | Filtro de la tabla. Sin dependencias. |
 | `db/schema.sql` | Esquema PostgreSQL idempotente. |
@@ -40,6 +42,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `bin/limpiar.php` | Purga diaria por cron. |
 | `bin/crear_usuario.php` | Alta de usuario por terminal (la clave se pide por stdin). |
 | `tests/auth_smoke.php` | Humo de auth y throttle contra Postgres. |
+| `tests/admin_smoke.php` | Humo del panel contra Postgres: salud, estadísticas y purga. |
 
 ## Reglas del dominio
 
@@ -79,6 +82,12 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   de la UI es `/archivo.php?id=N`, exige sesión y comprueba que el correo del usuario esté en
   `archivo_destinatario`; si no, responde 404. Registra el acceso con `via = 'ui'`.
 - **Toda acción con efecto va por POST con CSRF**; la consulta es GET. `salir.php` no acepta GET.
+- **El panel es solo para `admin`** (`requerirAdmin()`): salud (archivos activos, disco vs cuota,
+  correos de 7 días, accesos de 30 días), uso por archivo y por destinatario, y purga manual.
+  La purga borra el `.gz` (confinado a `ARB_A_DIR`), marca `borrado_en` y deja rastro en
+  `bitacora`; si el fichero ya no existe, también lo marca para que el cron no lo reintente.
+- **El link directo es anónimo:** sus accesos se cuentan por archivo, nunca por persona. Los
+  accesos de la UI se atribuyen al correo de la sesión.
 
 ## Convenciones de código
 
@@ -151,6 +160,9 @@ docker run --rm --network <red> -v "$PWD":/app -w /app \
 `tests/auth_smoke.php` cubre alta, verificación de clave, normalización de correo,
 throttle y login. Es el gate que detecta errores de binding que `php -l` no ve.
 
+`tests/admin_smoke.php` cubre el panel contra la misma base (`ARB_A_DIR` debe apuntar al
+depósito): salud, estadísticas, filtro "nunca abierto", purga con fichero y sin él, y bitácora.
+
 ## Despliegue
 
 - **Dominio:** `arb-a.servicios.care` (Caddy del host hace TLS y `php_fastcgi app-arb-a:9000`).
@@ -159,6 +171,13 @@ throttle y login. Es el gate que detecta errores de binding que `php -l` no ve.
 - **Contenedores:** `app-arb-a` (php:8.5-fpm-alpine + pdo_pgsql) y `db-arb-a`
   (postgres:16-alpine), red `arb-a` + `redweb`.
 - **Cron:** `/etc/cron.d/arb-a` corre `bin/limpiar.php` a las 03:23.
+
+## Deuda conocida
+
+- El panel limita a 200 archivos y 300 destinatarios sin paginación: "seleccionar todos" cubre
+  solo lo visible. El cron sigue purgando los vencidos, así que no se acumulan.
+- La purga manual no es transaccional (select → `unlink` → update): un doble POST concurrente
+  puede duplicar la entrada de bitácora, pero nunca borra de más.
 
 ## Glosario
 
