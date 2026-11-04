@@ -63,9 +63,6 @@ ok(!parseDestinatarios('uno@sub.comex.care')['ok'], 'subdominio no autorizado se
 ok(parseDestinatarios('UNO@Comex.Care')['ok'], 'el dominio se compara sin distinguir mayúsculas');
 ok(parseDestinatarios('a@camposreyeros.com,b@comexpintacolor.com')['ok'], 'todos los dominios de la lista pasan');
 
-$p = parsePlazas('plaza1, Plaza2, plaza1, <script>');
-ok($p === ['PLAZA1', 'PLAZA2', 'SCRIPT'], 'plazas en mayúsculas, sin duplicados ni símbolos');
-ok(parsePlazas('') === [], 'sin plazas es válido');
 
 // --- CSV válido y variantes de formato ---
 $ruta = csvTemporal("A,B\n1,2\n");

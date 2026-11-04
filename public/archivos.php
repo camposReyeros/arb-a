@@ -15,7 +15,7 @@ $archivos = archivosDeUsuario((string) $usuario['correo']);
 htmlInicio('Mis archivos', $usuario);
 ?>
 <h1>Mis archivos</h1>
-<p class="sub">Los archivos que te compartieron. Se conservan 90 días desde la carga.</p>
+<p class="sub">Los archivos que te compartieron. Se conservan <?= (int) config()['archivos']['dias'] ?> días desde la carga; el enlace del correo dura <?= (int) config()['archivos']['dias_link'] ?> días.</p>
 
 <?php if ($archivos === []): ?>
 <div class="tarjeta vacio">
@@ -38,7 +38,6 @@ htmlInicio('Mis archivos', $usuario);
       <tr>
         <th>Nombre</th>
         <th>Fecha</th>
-        <th>Plaza</th>
         <th>Vigencia</th>
         <th></th>
       </tr>
@@ -47,19 +46,11 @@ htmlInicio('Mis archivos', $usuario);
       <?php foreach ($archivos as $archivo):
           $dias = diasRestantes((string) $archivo['expira_en']);
           $clase = $dias <= 7 ? 'badge-alerta' : 'badge-ok';
-          $plazas = plazasDe($archivo['plazas'] ?? null);
           ?>
       <tr data-nombre="<?= e(mb_strtolower((string) $archivo['nombre'])) ?>"
           data-dias="<?= (int) $dias ?>">
         <td class="nombre"><?= e((string) $archivo['nombre']) ?></td>
         <td><?= e(fechaVisible((string) $archivo['subido_en'])) ?></td>
-        <td>
-          <?php if ($plazas === []): ?>
-          <span class="etiqueta">Sin plaza</span>
-          <?php else: foreach ($plazas as $plaza): ?>
-          <span class="etiqueta"><?= e($plaza) ?></span>
-          <?php endforeach; endif; ?>
-        </td>
         <td><span class="badge <?= $clase ?>"><?= $dias ?> día<?= $dias === 1 ? '' : 's' ?></span></td>
         <td class="accion">
           <a class="boton boton-suave" href="/archivo.php?id=<?= (int) $archivo['id'] ?>">Descargar</a>

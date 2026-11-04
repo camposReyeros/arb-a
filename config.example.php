@@ -22,8 +22,10 @@ return [
     'archivos' => [
         // Fuera del docroot: nunca se sirven por HTTP directo.
         'dir' => getenv('ARB_A_DIR') ?: '/var/lib/arb-a/archivos',
-        // Vigencia del archivo y de su link.
+        // Vigencia del archivo (la UI sigue sirviendo hasta aquí).
         'dias' => (int) (getenv('ARB_A_DIAS') ?: 90),
+        // Vigencia del link que va en el correo; después solo se llega por la web.
+        'dias_link' => (int) (getenv('ARB_A_DIAS_LINK') ?: 30),
         // Tope de disco para el total de archivos vivos (comprimidos). 0 = sin tope.
         'cuota_bytes' => (int) (getenv('ARB_A_CUOTA_BYTES') ?: 2 * 1024 ** 3),
     ],
@@ -43,6 +45,13 @@ return [
         ))),
     ],
     'url_base' => getenv('ARB_A_URL_BASE') ?: 'https://arb-a.servicios.care',
+    // Credenciales de ipro (solo lectura). Las usa bin/sincronizar_usuarios.php:
+    // arb-a no pide contraseña propia, reutiliza el token_hash que ya existe allá.
+    'ipro' => [
+        'dsn' => getenv('ARB_A_IPRO_DSN') ?: '',
+        'user' => getenv('ARB_A_IPRO_USER') ?: '',
+        'pass' => getenv('ARB_A_IPRO_PASS') ?: '',
+    ],
     // IPs del proxy de confianza (Caddy) que pueden mandar X-Forwarded-For/Proto.
     'proxy_confiable' => array_values(array_filter(array_map(
         'trim',

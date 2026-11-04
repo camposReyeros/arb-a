@@ -5,9 +5,10 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/usuarios.php';
 
 /**
- * Autenticación local: correo + clave contra `usuario`.
- * A diferencia de ipro no hay feeder ni derivado rápido: se usa `password_hash`.
- * El throttle por correo+IP compensa cualquier intento repetido.
+ * Autenticación local con las credenciales de ipro: usuario + clave, con el
+ * mismo derivado (`md5(últimos 5 + usuario + clave)`) contra `usuario.token_hash`.
+ * Las credenciales las sincroniza `bin/sincronizar_usuarios.php`; el correo del
+ * usuario solo decide a qué archivos entra, no cómo inicia sesión.
  */
 
 const ARB_A_IDLE_MIN = 30;      // inactividad máxima
@@ -57,6 +58,7 @@ function guardarSesion(array $usuario): void
     session_regenerate_id(true);
     $_SESSION['usuario'] = [
         'id' => (int) ($usuario['id'] ?? 0),
+        'externo_id' => (string) ($usuario['externo_id'] ?? ''),
         'correo' => (string) ($usuario['correo'] ?? ''),
         'nombre' => (string) ($usuario['nombre'] ?? ''),
         'iniciado_en' => time(),
@@ -109,16 +111,17 @@ function requerirAdmin(): array
     return $usuario;
 }
 
-function claveThrottle(string $correo, string $ip): string
+function claveThrottle(string $login, string $ip): string
 {
-    return mb_substr(normalizarCorreo($correo), 0, 160) . '|' . $ip;
+    // Trim y minúsculas SOLO para el bucket: el derivado usa el usuario crudo, igual que ipro.
+    return mb_substr(mb_strtolower(trim($login)), 0, 80) . '|' . $ip;
 }
 
 /** Segundos restantes de bloqueo, o 0 si puede intentar. */
-function bloqueoLogin(string $correo, string $ip): int
+function bloqueoLogin(string $login, string $ip): int
 {
     $stmt = bd()->prepare('select bloqueado_hasta from intento_login where clave = :c');
-    $stmt->execute(['c' => claveThrottle($correo, $ip)]);
+    $stmt->execute(['c' => claveThrottle($login, $ip)]);
     $hasta = $stmt->fetchColumn();
 
     if ($hasta === false || $hasta === null) {
@@ -130,10 +133,10 @@ function bloqueoLogin(string $correo, string $ip): int
     return $restan > 0 ? $restan : 0;
 }
 
-function registrarFalloLogin(string $correo, string $ip): void
+function registrarFalloLogin(string $login, string $ip): void
 {
     $pdo = bd();
-    $clave = claveThrottle($correo, $ip);
+    $clave = claveThrottle($login, $ip);
 
     $pdo->beginTransaction();
     try {
@@ -177,43 +180,42 @@ function registrarFalloLogin(string $correo, string $ip): void
     }
 }
 
-function limpiarFalloLogin(string $correo, string $ip): void
+function limpiarFalloLogin(string $login, string $ip): void
 {
     bd()->prepare('delete from intento_login where clave = :c')
-        ->execute(['c' => claveThrottle($correo, $ip)]);
+        ->execute(['c' => claveThrottle($login, $ip)]);
 }
 
 /**
- * Valida correo + clave. Devuelve la identidad o null.
+ * Valida usuario + clave contra el derivado de ipro. Devuelve la identidad o null.
  * Un solo camino de negación: el controlador muestra siempre el mismo mensaje.
  */
-function loginLocal(string $correo, string $clave): ?array
+function loginLocal(string $login, string $clave): ?array
 {
-    $correo = normalizarCorreo($correo);
-    if ($correo === '' || $clave === '') {
+    $login = normalizarLogin($login);
+    if ($login === '' || $clave === '') {
         return null;
     }
 
     $ip = ipCliente() ?? '';
-    if (bloqueoLogin($correo, $ip) > 0) {
+    if (bloqueoLogin($login, $ip) > 0) {
         return null;
     }
 
-    $fila = usuarioPorCorreo($correo);
+    $fila = usuarioPorLogin($login);
+    $derivado = derivadoIpro($login, $clave);
 
-    // Verificación real y dummy si no hay fila: no se oracula existencia por tiempo.
-    $ok = $fila !== null
-        && password_verify($clave, (string) $fila['clave_hash'])
-        && (bool) $fila['activo'];
+    // Siempre se compara: sin fila se usa un hash imposible, sin oráculo por tiempo.
+    $esperado = $fila !== null && is_string($fila['token_hash']) ? (string) $fila['token_hash'] : str_repeat('0', 32);
+    $ok = hash_equals($esperado, $derivado) && $fila !== null && (bool) $fila['activo'];
 
     if (!$ok) {
-        registrarFalloLogin($correo, $ip);
-        password_verify($clave, '$argon2id$v=19$m=65536,t=4,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+        registrarFalloLogin($login, $ip);
 
         return null;
     }
 
-    limpiarFalloLogin($correo, $ip);
+    limpiarFalloLogin($login, $ip);
     guardarSesion($fila);
 
     return $fila;

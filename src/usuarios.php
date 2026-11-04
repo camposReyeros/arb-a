@@ -14,10 +14,25 @@ function correoValido(string $correo): bool
     return filter_var($correo, FILTER_VALIDATE_EMAIL) !== false;
 }
 
-function usuarioPorCorreo(string $correo): ?array
+/** El login es el `externo_id` de ipro: se compara tal cual, solo sin espacios. */
+function normalizarLogin(string $login): string
 {
-    $stmt = bd()->prepare('select * from usuario where lower(correo) = :c');
-    $stmt->execute(['c' => normalizarCorreo($correo)]);
+    return trim($login);
+}
+
+/**
+ * Derivado del feeder, idéntico al de ipro: `md5(últimos 5 + usuario + clave)`.
+ * Es rápido; el throttle por usuario+IP y la comparación con `hash_equals` lo compensan.
+ */
+function derivadoIpro(string $login, string $clave): string
+{
+    return md5(substr($login, -5) . $login . $clave);
+}
+
+function usuarioPorLogin(string $login): ?array
+{
+    $stmt = bd()->prepare('select * from usuario where externo_id = :e');
+    $stmt->execute(['e' => normalizarLogin($login)]);
     $fila = $stmt->fetch();
 
     return $fila !== false ? $fila : null;
@@ -33,42 +48,90 @@ function usuarioPorSesion(int $id): ?array
 }
 
 /**
- * Alta de usuario. La clave se guarda con `password_hash` (argon2id si está
- * disponible): este proyecto no arrastra el derivado histórico de ipro.
+ * Alta o actualización de un usuario venido de ipro. Nunca toca `nivel`:
+ * el nivel es local (un admin de arb-a no tiene por qué serlo en ipro).
+ * Devuelve 'alta', 'actualiza' u 'omitido'.
  */
-function crearUsuario(string $correo, string $clave, string $nombre = '', string $nivel = 'lector'): int
+function sincronizarUsuario(array $fila): string
 {
-    $correo = normalizarCorreo($correo);
+    $login = normalizarLogin((string) ($fila['externo_id'] ?? ''));
+    $correo = normalizarCorreo((string) ($fila['correo'] ?? ''));
+    $nombre = trim((string) ($fila['nombre'] ?? ''));
+    $token = mb_strtolower(trim((string) ($fila['token_hash'] ?? '')));
+    $activo = (bool) ($fila['activo'] ?? true);
 
-    if (!correoValido($correo)) {
-        throw new InvalidArgumentException('Correo inválido: ' . $correo);
+    if ($login === '' || !correoValido($correo) || preg_match('/^[a-f0-9]{32}$/', $token) !== 1) {
+        return 'omitido';
     }
+
+    $pdo = bd();
+
+    // Instalaciones viejas: el correo ya existía con clave local y sin login.
+    $adopta = $pdo->prepare(
+        'update usuario set externo_id = :e, nombre = :n, token_hash = :t,
+                activo = :a, sincronizado_en = now()
+         where externo_id is null and lower(correo) = lower(:c)'
+    );
+    $adopta->execute([
+        'e' => $login,
+        'n' => $nombre !== '' ? $nombre : null,
+        't' => $token,
+        'a' => $activo ? 1 : 0,
+        'c' => $correo,
+    ]);
+    if ($adopta->rowCount() > 0) {
+        return 'actualiza';
+    }
+
+    $existe = $pdo->prepare('select 1 from usuario where externo_id = :e');
+    $existe->execute(['e' => $login]);
+
+    if ($existe->fetchColumn() !== false) {
+        $pdo->prepare(
+            'update usuario set correo = :c, nombre = :n, token_hash = :t,
+                    activo = :a, sincronizado_en = now()
+             where externo_id = :e'
+        )->execute([
+            'c' => $correo,
+            'n' => $nombre !== '' ? $nombre : null,
+            't' => $token,
+            'a' => $activo ? 1 : 0,
+            'e' => $login,
+        ]);
+
+        return 'actualiza';
+    }
+
+    $pdo->prepare(
+        'insert into usuario (externo_id, correo, nombre, token_hash, activo, sincronizado_en)
+         values (:e, :c, :n, :t, :a, now())'
+    )->execute([
+        'e' => $login,
+        'c' => $correo,
+        'n' => $nombre !== '' ? $nombre : null,
+        't' => $token,
+        'a' => $activo ? 1 : 0,
+    ]);
+
+    return 'alta';
+}
+
+/** Cambia el nivel local de un usuario ya sincronizado. */
+function marcarNivel(string $login, string $nivel): bool
+{
     if (!in_array($nivel, ARB_A_NIVELES, true)) {
         throw new InvalidArgumentException('Nivel inválido: ' . $nivel);
     }
-    if (mb_strlen($clave) < 12) {
-        throw new InvalidArgumentException('La clave debe tener al menos 12 caracteres.');
-    }
 
-    $algoritmo = defined('PASSWORD_ARGON2ID') ? PASSWORD_ARGON2ID : PASSWORD_DEFAULT;
+    $stmt = bd()->prepare('update usuario set nivel = :n where externo_id = :e');
+    $stmt->execute(['n' => $nivel, 'e' => normalizarLogin($login)]);
 
-    $stmt = bd()->prepare(
-        'insert into usuario (correo, nombre, clave_hash, nivel)
-         values (:c, :n, :h, :nivel) returning id'
-    );
-    $stmt->execute([
-        'c' => $correo,
-        'n' => $nombre !== '' ? $nombre : null,
-        'h' => password_hash($clave, $algoritmo),
-        'nivel' => $nivel,
-    ]);
-
-    return (int) $stmt->fetchColumn();
+    return $stmt->rowCount() > 0;
 }
 
 function listarUsuarios(): array
 {
-    return bd()->query('select id, correo, nombre, nivel, activo, creado_en
+    return bd()->query('select id, externo_id, correo, nombre, nivel, activo, sincronizado_en
                         from usuario order by creado_en desc')->fetchAll();
 }
 

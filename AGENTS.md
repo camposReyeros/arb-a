@@ -7,7 +7,7 @@ entrega por link directo con token.
 ## Idioma
 
 Español de México. Identificadores técnicos en inglés; dominio en español
-(`archivo`, `destinatario`, `plaza`, `envio`).
+(`archivo`, `destinatario`, `usuario`, `envio`).
 
 ## Arquitectura
 
@@ -16,20 +16,20 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `public/` | **Docroot**. Único servido por HTTP: `index.php`, `login.php`, `d.php`, `api/upload.php`, `admin.php`, `assets/`. |
 | `src/bootstrap.php` | Config, sesión (`arb_a`), CSRF, escape, cabeceras de seguridad. |
 | `src/bd.php` | PDO único. |
-| `src/usuarios.php` | Usuarios, normalización de correo, bitácora. |
-| `src/auth.php` | Login correo + clave (`password_hash`), niveles, throttle. |
+| `src/usuarios.php` | Usuarios: login de ipro, derivado, sincronización y bitácora. |
+| `src/auth.php` | Login usuario + clave con el derivado de ipro, niveles y throttle. |
 | `src/archivos.php` | Subida, compresión gzip en streaming, token, consultas por correo, purga. |
 | `src/correo.php` | SMTP y registro en `envio` (salud del panel). |
-| `src/csv.php` | Validación del CSV en una pasada (`fgetcsv`), nombre en MAYÚSCULAS, cabeceras `X-Correos`/`X-Plazas`. |
+| `src/csv.php` | Validación del CSV en una pasada (`fgetcsv`), nombre en MAYÚSCULAS y cabecera `X-Correos`. |
 | `src/errores.php` | Catálogo `codigo → [status, mensaje]` de la API. Es el contrato con el cliente. |
 | `src/limite.php` | Límite de cargas por IP: ventana móvil de una hora sobre `limite_carga`. |
 | `src/cuota.php` | Cuota global de disco (2 GB por defecto) sobre la suma de `.gz` vivos. |
 | `public/api/index.php` | Documentación viva en `/api`; la tabla de errores sale de `src/errores.php`. |
 | `public/api/openapi.yaml` | Contrato OpenAPI 3.1, servido tal cual. |
 | `docs/api/upload.md` | Documentación de referencia (estilo abuseipdb) para quien integra. |
-| `vistas/layout.php` | Helpers de presentación: `htmlInicio`/`htmlFin`, plazas, fechas, tamaños. |
+| `vistas/layout.php` | Helpers de presentación: `htmlInicio`/`htmlFin`, fechas, tamaños. |
 | `public/index.php` | Raíz: manda a `/archivos.php` o `/login.php` según la sesión. |
-| `public/login.php` | Login del portal (correo + clave, CSRF, throttle, un solo mensaje de error). |
+| `public/login.php` | Login del portal (usuario + clave, CSRF, throttle, un solo mensaje de error). |
 | `public/salir.php` | Cierre de sesión: solo POST con CSRF. |
 | `public/archivos.php` | "Mis archivos": tabla con buscador y filtro de vigencia. |
 | `public/archivo.php` | Descarga desde el portal; valida sesión y pertenencia (`via = 'ui'`). |
@@ -40,19 +40,23 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `db/schema.sql` | Esquema PostgreSQL idempotente. |
 | `db/migraciones/` | Cambios posteriores, numerados, aplicados a mano. |
 | `bin/limpiar.php` | Purga diaria por cron. |
-| `bin/crear_usuario.php` | Alta de usuario por terminal (la clave se pide por stdin). |
+| `bin/sincronizar_usuarios.php` | Copia las credenciales de ipro (`externo_id`, correo, `token_hash`). Nunca toca `nivel`. |
+| `bin/marcar_admin.php` | Marca el nivel local de un usuario ya sincronizado. |
 | `tests/auth_smoke.php` | Humo de auth y throttle contra Postgres. |
 | `tests/admin_smoke.php` | Humo del panel contra Postgres: salud, estadísticas y purga. |
 
 ## Reglas del dominio
 
-- **La plaza es informativa.** `archivo.plazas` se guarda y se muestra; **nunca** restringe
-  acceso. Hay usuarios que apoyan otras plazas.
+- **El login es el de ipro:** `usuario` (`externo_id`) + la misma contraseña. Las credenciales
+  se sincronizan con `bin/sincronizar_usuarios.php`; `usuario.token_hash` guarda el derivado
+  `md5(últimos 5 + usuario + clave)`. El correo **no** sirve para iniciar sesión.
 - **La regla de acceso es el correo:** un usuario ve un archivo si su correo está en
   `archivo_destinatario`. Se compara en minúsculas.
 - **El link directo es el token.** `/d/<token>` descarga sin login, con token aleatorio
-  (32 bytes hex) y vigencia igual a la del archivo. En BD se guarda **solo su sha256**
-  (`archivo.token_hash`): un volcado no entrega links vivos.
+  (32 bytes hex) y **vigencia de 30 días** (`archivo.link_expira_en`). En BD se guarda **solo su
+  sha256** (`archivo.token_hash`): un volcado no entrega links vivos.
+- **El archivo dura 90 días** (`archivo.expira_en`); pasados los 30 del link solo se llega por el
+  portal con el usuario. `expira_en` y `link_expira_en` son independientes.
 - **Todo vive 3 meses.** `expira_en = now() + 90 days`; el cron borra el .gz y marca
   `borrado_en`. Archivo vencido no se descarga ni por link directo.
 - **Nombre visible en MAYÚSCULAS**, conservando el nombre original como base.
@@ -95,7 +99,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 - Archivos de menos de 300 líneas.
 - **Nunca SQL interpolado**: `PDO::prepare` con parámetros enlazados.
 - Endpoints JSON terminan en `exit`.
-- `hash_equals` para tokens; `password_hash`/`password_verify` para claves.
+- `hash_equals` para tokens y para el derivado de ipro; **no** hay `password_hash` local.
 - **PHP 8.5** (última línea con parches de seguridad). No bajar de versión.
 - CSS propio self-hosted, **sin CDN**: el diseño viene de Stitch (`Corporate Precision`) y se
   porta a `public/assets/estilo.css`. Nada de Tailwind en producción, nada de Google Fonts.
@@ -114,7 +118,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 - Nada de archivos dentro del docroot: `archivo.ruta` vive en `/var/lib/arb-a/archivos`,
   modo `0600`, servido solo por PHP tras validar token.
 - API-Key comparada con `hash_equals`, tomada de `ARB_A_APIKEY` (env, nunca en git).
-- Login con throttle: 10 fallos en 15 min bloquean 15 min por correo+IP.
+- Login con throttle: 10 fallos en 15 min bloquean 15 min por usuario+IP.
 - Sesión PHP con `HttpOnly`, `SameSite=Lax`, `secure` cuando hay HTTPS. Vigencia:
   **30 min de inactividad y 8 h de tope absoluto**.
 - **CSRF obligatorio en todo POST** (`campoCsrf()` en el formulario, `csrfValido()` en el
@@ -157,8 +161,8 @@ docker run --rm --network <red> -v "$PWD":/app -w /app \
   arb-a-app:1 php tests/auth_smoke.php
 ```
 
-`tests/auth_smoke.php` cubre alta, verificación de clave, normalización de correo,
-throttle y login. Es el gate que detecta errores de binding que `php -l` no ve.
+`tests/auth_smoke.php` cubre la sincronización desde ipro, el derivado, el nivel local, el
+throttle y el login. Es el gate que detecta errores de binding que `php -l` no ve.
 
 `tests/admin_smoke.php` cubre el panel contra la misma base (`ARB_A_DIR` debe apuntar al
 depósito): salud, estadísticas, filtro "nunca abierto", purga con fichero y sin él, y bitácora.
@@ -195,6 +199,6 @@ depósito): salud, estadísticas, filtro "nunca abierto", purga con fichero y si
 |---|---|
 | `archivo` | CSV subido, ya comprimido en gzip |
 | `destinatario` | correo al que se le envió el link; define qué ve en la UI |
-| `plaza` | agrupador informativo (PLAZA1, PLAZA2...); no restringe |
-| `token` | secreto del link directo `/d/<token>` |
+| `usuario` | `externo_id` de ipro; es el login y la contraseña es la misma de allá |
+| `token` | secreto del link directo `/d/<token>`; vence a los 30 días |
 | `via` | cómo se accedió: `ui` (con sesión) o `directo` (link) |

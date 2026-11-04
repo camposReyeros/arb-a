@@ -3,21 +3,35 @@
 
 begin;
 
--- Usuarios del portal. Datos mínimos: correo, clave y nivel.
+-- Usuarios del portal. El login (`externo_id`) y el `token_hash` se sincronizan
+-- desde ipro: la contraseña es la misma que ya usan allá, no se duplica.
 -- El acceso a un archivo NO depende de esta tabla: depende de que el correo
 -- del usuario esté en `archivo_destinatario`.
 create table if not exists usuario (
-    id          bigserial primary key,
-    correo      text not null,
-    nombre      text,
-    clave_hash  text not null,
-    nivel       text not null default 'lector' check (nivel in ('lector', 'admin')),
-    activo      boolean not null default true,
-    creado_en   timestamptz not null default now()
+    id              bigserial primary key,
+    externo_id      text,                         -- login: el mismo de ipro (p. ej. 13010)
+    correo          text not null,                -- regla de acceso a archivos
+    nombre          text,
+    token_hash      text,                         -- derivado de ipro (md5), lo escribe el sync
+    nivel           text not null default 'lector' check (nivel in ('lector', 'admin')),
+    activo          boolean not null default true,
+    sincronizado_en timestamptz,
+    creado_en       timestamptz not null default now()
 );
 
--- El correo es único sin importar mayúsculas; se guarda en minúsculas.
-create unique index if not exists usuario_correo_uidx on usuario (lower(correo));
+-- Instalaciones previas al login de ipro: se migran sin perder correo ni nivel.
+-- `clave_hash` (argon2 local) se retira: ya no hay contraseña propia que verificar.
+alter table usuario add column if not exists externo_id text;
+alter table usuario add column if not exists token_hash text;
+alter table usuario add column if not exists sincronizado_en timestamptz;
+alter table usuario drop column if exists clave_hash;
+
+-- El correo se guarda en minúsculas. No es único: ipro tiene personas
+-- repetidas con el mismo correo y el acceso se resuelve por correo, no por fila.
+drop index if exists usuario_correo_uidx;
+create index if not exists usuario_correo_idx on usuario (lower(correo));
+-- El login es único; los usuarios aún no sincronizados quedan con NULL.
+create unique index if not exists usuario_externo_id_uidx on usuario (externo_id);
 
 -- Archivo CSV comprimido. `ruta` está fuera del docroot: jamás se sirve directo.
 create table if not exists archivo (
@@ -28,12 +42,19 @@ create table if not exists archivo (
     bytes_gz    bigint not null check (bytes_gz > 0),   -- tamaño comprimido
     sha256      char(64) not null,                -- del CSV original
     token_hash  char(64) not null unique,         -- sha256 del token del link /d/<token>
-    plazas      text[] not null default '{}',     -- informativo, nunca restringe
     ip_origen   inet,
     subido_en   timestamptz not null default now(),
-    expira_en   timestamptz not null,
+    expira_en   timestamptz not null,             -- vigencia del archivo (90 días)
+    link_expira_en timestamptz not null,          -- vigencia del link del correo (30 días)
     borrado_en  timestamptz                       -- purgado: la fila se conserva
 );
+
+-- Instalaciones previas: el link nace con 30 días contados desde la subida.
+alter table archivo add column if not exists link_expira_en timestamptz;
+update archivo set link_expira_en = subido_en + interval '30 days' where link_expira_en is null;
+alter table archivo alter column link_expira_en set not null;
+-- La plaza era solo una etiqueta informativa; el acceso siempre fue por correo.
+alter table archivo drop column if exists plazas;
 
 create index if not exists archivo_expira_idx on archivo (expira_en) where borrado_en is null;
 create index if not exists archivo_subido_idx on archivo (subido_en desc);

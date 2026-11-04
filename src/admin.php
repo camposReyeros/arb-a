@@ -58,11 +58,9 @@ function condicionesAdmin(array $filtros): array
 {
     $nombre = mb_substr(trim((string) ($filtros['nombre'] ?? '')), 0, 80);
     $correo = mb_substr(trim((string) ($filtros['correo'] ?? '')), 0, 120);
-    $plaza = mb_strtoupper(mb_substr(trim((string) ($filtros['plaza'] ?? '')), 0, 40));
 
     $condiciones = [
         "(:nombre = '' or a.nombre ilike :nombre_like escape '\\')",
-        "(:plaza = '' or :plaza = any(a.plazas))",
         "(:correo = '' or exists (select 1 from archivo_destinatario x
                                    where x.archivo_id = a.id and lower(x.correo) like :correo_like escape '\\'))",
     ];
@@ -74,7 +72,6 @@ function condicionesAdmin(array $filtros): array
     $parametros = [
         'nombre' => $nombre,
         'nombre_like' => '%' . $escapa($nombre) . '%',
-        'plaza' => $plaza,
         'correo' => $correo,
         'correo_like' => '%' . $escapa($correo) . '%',
     ];
@@ -88,7 +85,7 @@ function estadisticasArchivos(array $filtros): array
     [$where, $parametros] = condicionesAdmin($filtros);
     $nunca = !empty($filtros['nunca']) ? ' having count(e.id) = 0' : '';
 
-    $sql = "select a.id, a.nombre, a.subido_en, a.expira_en, a.plazas,
+    $sql = "select a.id, a.nombre, a.subido_en, a.expira_en,
                    (select count(*) from archivo_destinatario d
                      where d.archivo_id = a.id) as destinatarios,
                    count(e.id) filter (where e.via = 'ui') as ui,
@@ -148,7 +145,7 @@ function archivosPurgables(array $filtros): array
     [$filtro, $parametros] = condicionesAdmin($filtros);
     $where[] = $filtro;
 
-    $sql = 'select a.id, a.nombre, a.subido_en, a.expira_en, a.bytes_gz, a.plazas,
+    $sql = 'select a.id, a.nombre, a.subido_en, a.expira_en, a.bytes_gz,
                    (select count(*) from archivo_destinatario d
                      where d.archivo_id = a.id) as destinatarios
               from archivo a

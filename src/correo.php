@@ -185,10 +185,10 @@ function sinCrlf(string $valor): string
  * Avisa a cada destinatario y deja el resultado en `envio` (salud del panel).
  * Una sola sesión SMTP para toda la tanda; se reconecta solo si se cae.
  */
-function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombre, string $link, string $expira): array
+function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombre, string $link, string $expiraLink, string $expira): array
 {
     $cfg = config()['correo'];
-    [$texto, $html] = cuerpoAviso($nombre, $link, $expira);
+    [$texto, $html] = cuerpoAviso($nombre, $link, $expiraLink, $expira);
     $cliente = new ClienteSmtp($cfg);
     $ok = 0;
     $conError = 0;
@@ -234,19 +234,23 @@ function avisarDestinatarios(int $archivoId, array $destinatarios, string $nombr
     return ['ok' => $ok, 'error' => $conError];
 }
 
-function cuerpoAviso(string $nombre, string $link, string $expira): array
+function cuerpoAviso(string $nombre, string $link, string $expiraLink, string $expira): array
 {
-    $fecha = fechaCorta($expira);
+    $fechaLink = fechaCorta($expiraLink);
+    $fechaArchivo = fechaCorta($expira);
     $texto = "Hola:\n\n"
         . "El archivo {$nombre} ya está disponible en ARB-A.\n\n"
         . "Descárguelo aquí: {$link}\n\n"
-        . "El enlace y el archivo estarán vigentes hasta el {$fecha}.\n\n"
+        . "Este enlace estará vigente hasta el {$fechaLink}.\n"
+        . "Después podrá descargarlo desde el portal (https://arb-a.servicios.care) "
+        . "con su usuario de siempre, hasta el {$fechaArchivo}.\n\n"
         . "ARB-A · servicios.care\n";
 
     $html = '<p>Hola:</p>'
         . '<p>El archivo <strong>' . e($nombre) . '</strong> ya está disponible en ARB-A.</p>'
         . '<p><a href="' . e($link) . '">Descargar archivo</a></p>'
-        . '<p>El enlace y el archivo estarán vigentes hasta el ' . e($fecha) . '.</p>'
+        . '<p>Este enlace estará vigente hasta el ' . e($fechaLink) . '. Después podrá descargarlo '
+        . 'desde el portal con su usuario de siempre, hasta el ' . e($fechaArchivo) . '.</p>'
         . '<p style="color:#5f6368;font-size:12px">ARB-A · servicios.care</p>';
 
     return [$texto, $html];

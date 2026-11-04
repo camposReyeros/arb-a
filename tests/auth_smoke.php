@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Humo de autenticación: requiere PostgreSQL vivo y el esquema aplicado.
- * Cubre el alta, la verificación de clave, la normalización del correo y el
+ * Cubre la sincronización desde ipro, el derivado, el login por usuario y el
  * throttle (la consulta con placeholders repetidos no la ve `php -l`).
  */
 
@@ -21,28 +21,55 @@ function ok(bool $condicion, string $mensaje): void
     fwrite(STDOUT, 'ok: ' . $mensaje . "\n");
 }
 
-$correo = 'prueba+' . bin2hex(random_bytes(4)) . '@servicios.care';
-$id = crearUsuario($correo, 'clave-de-prueba-larga', 'Prueba', 'lector');
-ok($id > 0, 'alta de usuario');
+$login = 'T' . bin2hex(random_bytes(4));
+$clave = 'clave-de-prueba-larga';
 
-$fila = usuarioPorCorreo($correo);
-ok($fila !== null && password_verify('clave-de-prueba-larga', (string) $fila['clave_hash']), 'verificación de clave');
-ok(usuarioPorCorreo('  ' . strtoupper($correo) . '  ') !== null, 'correo normalizado');
+$estado = sincronizarUsuario([
+    'externo_id' => $login,
+    'correo' => 'prueba+' . bin2hex(random_bytes(3)) . '@servicios.care',
+    'nombre' => 'Prueba',
+    'token_hash' => derivadoIpro($login, $clave),
+    'activo' => true,
+]);
+ok($estado === 'alta', 'alta desde ipro');
+
+$fila = usuarioPorLogin('  ' . $login . '  ');
+ok($fila !== null, 'login normalizado (solo trim)');
+ok(
+    $fila !== null && hash_equals((string) $fila['token_hash'], derivadoIpro($login, $clave)),
+    'token_hash = derivado de ipro'
+);
+
+// El sync no debe tocar el nivel local.
+marcarNivel($login, 'admin');
+sincronizarUsuario([
+    'externo_id' => $login,
+    'correo' => (string) $fila['correo'],
+    'nombre' => 'Prueba',
+    'token_hash' => derivadoIpro($login, $clave),
+    'activo' => true,
+]);
+$fila = usuarioPorLogin($login);
+ok($fila !== null && $fila['nivel'] === 'admin', 'la sincronización respeta el nivel local');
 
 $_SERVER['REMOTE_ADDR'] = '10.9.9.9';
-limpiarFalloLogin($correo, '10.9.9.9');
-registrarFalloLogin($correo, '10.9.9.9');
-ok(bloqueoLogin($correo, '10.9.9.9') === 0, 'un fallo no bloquea');
+limpiarFalloLogin($login, '10.9.9.9');
+registrarFalloLogin($login, '10.9.9.9');
+ok(bloqueoLogin($login, '10.9.9.9') === 0, 'un fallo no bloquea');
 
 for ($i = 0; $i < 9; $i++) {
-    registrarFalloLogin($correo, '10.9.9.9');
+    registrarFalloLogin($login, '10.9.9.9');
 }
-ok(bloqueoLogin($correo, '10.9.9.9') > 0, 'diez fallos bloquean');
+ok(bloqueoLogin($login, '10.9.9.9') > 0, 'diez fallos bloquean');
 
-limpiarFalloLogin($correo, '10.9.9.9');
-ok(bloqueoLogin($correo, '10.9.9.9') === 0, 'limpiar fallos desbloquea');
+limpiarFalloLogin($login, '10.9.9.9');
+ok(bloqueoLogin($login, '10.9.9.9') === 0, 'limpiar fallos desbloquea');
 
-ok(loginLocal($correo, 'clave-de-prueba-larga') !== null, 'login correcto');
-ok(loginLocal($correo, 'otra-clave-cualquiera') === null, 'clave incorrecta niega');
+ok(loginLocal($login, $clave) !== null, 'login correcto');
+ok(loginLocal($login, 'otra-clave-cualquiera') === null, 'clave incorrecta niega');
+ok(loginLocal('no-existe-jamas', $clave) === null, 'usuario inexistente niega');
+
+bd()->prepare('update usuario set activo = false where externo_id = :e')->execute(['e' => $login]);
+ok(loginLocal($login, $clave) === null, 'usuario inactivo niega');
 
 exit($fallos === 0 ? 0 : 1);

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Login del portal: correo + clave contra la tabla `usuario`.
+ * Login del portal: usuario + clave, las mismas credenciales de ipro.
  * Un solo mensaje de error para todas las negativas; el throttle vive en src/auth.php.
  */
 
@@ -16,26 +16,26 @@ if (usuarioActual() !== null) {
 }
 
 $error = null;
-$correo = '';
+$login = '';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if (!csrfValido(isset($_POST['csrf']) ? (string) $_POST['csrf'] : null)) {
         $error = 'La sesión expiró. Vuelve a intentarlo.';
     } else {
-        $correo = trim((string) ($_POST['correo'] ?? ''));
+        $login = trim((string) ($_POST['usuario'] ?? ''));
         $clave = (string) ($_POST['clave'] ?? '');
 
-        $espera = bloqueoLogin($correo, ipCliente() ?? '');
+        $espera = bloqueoLogin($login, ipCliente() ?? '');
         if ($espera > 0) {
             $error = sprintf(
                 'Demasiados intentos fallidos. Vuelve a intentarlo en %d minutos.',
                 (int) ceil($espera / 60)
             );
-        } elseif (loginLocal($correo, $clave) !== null) {
+        } elseif (loginLocal($login, $clave) !== null) {
             aviso('Sesión iniciada');
             redirigir('/archivos.php');
         } else {
-            $error = 'Correo o contraseña incorrectos.';
+            $error = 'Usuario o contraseña incorrectos.';
         }
     }
 }
@@ -54,9 +54,9 @@ htmlInicio('Iniciar sesión');
     <form method="post" action="/login.php" autocomplete="on">
       <?= campoCsrf() ?>
       <div class="campo">
-        <label for="correo">Correo</label>
-        <input id="correo" name="correo" type="email" required autocomplete="username"
-               inputmode="email" value="<?= e($correo) ?>">
+        <label for="usuario">Usuario</label>
+        <input id="usuario" name="usuario" type="text" required autocomplete="username"
+               autocapitalize="none" spellcheck="false" value="<?= e($login) ?>">
       </div>
       <div class="campo">
         <label for="clave">Contraseña</label>

@@ -19,7 +19,7 @@ require_once __DIR__ . '/correo.php';
  *
  * @throws ErrorDeCarga cuando la petición no cumple el contrato
  */
-function guardarSubida(array $archivo, array $destinatarios, array $plazas, ?string $ip): array
+function guardarSubida(array $archivo, array $destinatarios, ?string $ip): array
 {
     $codigoError = (int) ($archivo['error'] ?? UPLOAD_ERR_NO_FILE);
     if (in_array($codigoError, [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
@@ -61,6 +61,7 @@ function guardarSubida(array $archivo, array $destinatarios, array $plazas, ?str
 
     $token = bin2hex(random_bytes(32));
     $dias = (int) config()['archivos']['dias'];
+    $diasLink = (int) config()['archivos']['dias_link'];
 
     $pdo = bd();
     $pdo->beginTransaction();
@@ -69,12 +70,11 @@ function guardarSubida(array $archivo, array $destinatarios, array $plazas, ?str
         reservarCuota($bytesGz);
 
         $stmt = $pdo->prepare(
-            "insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, token_hash, plazas, ip_origen, expira_en)
-             values (:n, :r, :b, :g, :s, :t,
-                     (select coalesce(array_agg(valor), array[]::text[])
-                        from jsonb_array_elements_text(cast(:p as jsonb)) as valor),
-                     cast(:ip as inet), now() + make_interval(days => :d))
-             returning id, expira_en"
+            'insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, token_hash, ip_origen, expira_en, link_expira_en)
+             values (:n, :r, :b, :g, :s, :t, cast(:ip as inet),
+                     now() + make_interval(days => :d),
+                     now() + make_interval(days => :dl))
+             returning id, expira_en, link_expira_en'
         );
         $stmt->execute([
             'n' => $nombre,
@@ -83,13 +83,14 @@ function guardarSubida(array $archivo, array $destinatarios, array $plazas, ?str
             'g' => $bytesGz,
             's' => $sha256,
             't' => hash('sha256', $token),
-            'p' => json_encode($plazas, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             'ip' => $ip,
             'd' => $dias,
+            'dl' => $diasLink,
         ]);
         $fila = $stmt->fetch();
         $archivoId = (int) $fila['id'];
         $expira = (new DateTimeImmutable((string) $fila['expira_en']))->format(DATE_ATOM);
+        $expiraLink = (new DateTimeImmutable((string) $fila['link_expira_en']))->format(DATE_ATOM);
 
         $insertar = $pdo->prepare(
             'insert into archivo_destinatario (archivo_id, correo) values (:a, :c)'
@@ -109,7 +110,7 @@ function guardarSubida(array $archivo, array $destinatarios, array $plazas, ?str
     }
 
     $link = rtrim((string) config()['url_base'], '/') . '/d/' . $token;
-    $envios = avisarDestinatarios($archivoId, $destinatarios, $nombre, $link, $expira);
+    $envios = avisarDestinatarios($archivoId, $destinatarios, $nombre, $link, $expiraLink, $expira);
 
     return [
         'id' => $archivoId,
@@ -118,6 +119,7 @@ function guardarSubida(array $archivo, array $destinatarios, array $plazas, ?str
         'bytes_gz' => $bytesGz,
         'sha256' => $sha256,
         'expira_en' => $expira,
+        'link_expira_en' => $expiraLink,
         'link' => $link,
         'csv' => $resumen,
         'envios' => $envios,
@@ -200,7 +202,7 @@ function archivoPorToken(string $token): ?array
 
     $stmt = bd()->prepare(
         'select * from archivo
-          where token_hash = :t and borrado_en is null and expira_en > now()'
+          where token_hash = :t and borrado_en is null and expira_en > now() and link_expira_en > now()'
     );
     $stmt->execute(['t' => hash('sha256', $token)]);
     $fila = $stmt->fetch();

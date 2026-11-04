@@ -16,7 +16,6 @@ $curl = <<<'TXT'
 curl -X POST https://arb-a.servicios.care/api/upload \
   -H "X-Api-Key: $ARB_A_APIKEY" \
   -H "X-Correos: uno@servicios.care;dos@servicios.care" \
-  -H "X-Plazas: PLAZA1,PLAZA2" \
   -F "archivo=@ventas_marzo.csv;type=text/csv"
 TXT;
 
@@ -30,7 +29,6 @@ with open("ventas_marzo.csv", "rb") as fh:
         headers={
             "X-Api-Key": os.environ["ARB_A_APIKEY"],
             "X-Correos": "uno@servicios.care;dos@servicios.care",
-            "X-Plazas": "PLAZA1,PLAZA2",
         },
         files={"archivo": ("ventas_marzo.csv", fh, "text/csv")},
         timeout=180,
@@ -52,6 +50,7 @@ $respuesta = <<<'TXT'
   "bytes_gz": 4399307,
   "sha256": "938b393a…5330",
   "expira_en": "2027-02-02T14:03:11+00:00",
+  "link_expira_en": "2027-01-03T14:03:11+00:00",
   "link": "https://arb-a.servicios.care/d/4f1c…9ab2",
   "csv": { "lineas": 812345, "columnas": 12, "separador": "," },
   "envios": { "ok": 2, "error": 0 }
@@ -88,7 +87,8 @@ foreach (ARB_A_ERRORES as $codigo => [$estado, $mensaje]) {
     <p><strong>Dominios autorizados</strong> solo <span class="snippet">camposreyeros.com</span>,
       <span class="snippet">transportesvata.com</span>, <span class="snippet">comex.care</span> y
       <span class="snippet">comexpintacolor.com</span>. Otro dominio se rechaza sin guardar nada.</p>
-    <p><strong>Plazas</strong> <span class="snippet">X-Plazas</span> informativas, máximo 20. Nunca restringen el acceso.</p>
+    <p><strong>Vigencia</strong> el enlace del correo dura 30 días; el archivo se conserva 90 y
+      después solo se llega desde el portal.</p>
   </div>
 
   <h2>Ejemplo con curl</h2>

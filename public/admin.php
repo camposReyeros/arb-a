@@ -36,7 +36,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $filtros = [
     'nombre' => (string) ($_GET['nombre'] ?? ''),
     'correo' => (string) ($_GET['correo'] ?? ''),
-    'plaza' => (string) ($_GET['plaza'] ?? ''),
     'nunca' => isset($_GET['nunca']) && $_GET['nunca'] === '1',
     'estado' => (string) ($_GET['estado'] ?? 'todos'),
 ];
@@ -93,7 +92,6 @@ htmlInicio('Administración', $usuario);
   <form method="get" action="/admin.php" class="filtros">
     <input type="search" name="nombre" value="<?= e($filtros['nombre']) ?>" placeholder="Nombre del archivo…" aria-label="Nombre del archivo">
     <input type="search" name="correo" value="<?= e($filtros['correo']) ?>" placeholder="Correo destinatario…" aria-label="Correo destinatario">
-    <input type="search" name="plaza" value="<?= e($filtros['plaza']) ?>" placeholder="Plaza…" aria-label="Plaza">
     <select name="estado" aria-label="Vigencia en la purga">
       <option value="todos"<?= $filtros['estado'] === 'todos' ? ' selected' : '' ?>>Todos</option>
       <option value="expirado"<?= $filtros['estado'] === 'expirado' ? ' selected' : '' ?>>Vencidos</option>

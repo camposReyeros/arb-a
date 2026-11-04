@@ -32,10 +32,6 @@ Sube un CSV y dispara los correos.
 |---|---|---|---|
 | `X-Api-Key` | sí | `k3y...` | Clave del servicio |
 | `X-Correos` | sí | `uno@comex.care;dos@transportesvata.com` | Destinatarios del link. Separados por coma o punto y coma. Máximo 50; se normalizan a minúsculas y se deduplican. **Solo se aceptan dominios autorizados** (ver abajo) |
-| `X-Plazas` | no | `PLAZA1,PLAZA2` | Agrupador **informativo**. Máximo 20. Se normalizan a MAYÚSCULAS (`A-Z`, `0-9`, `_`, `-`) |
-
-`X-Plazas` nunca restringe quién puede descargar: el acceso es por coincidencia de correo con
-`X-Correos`.
 
 ### Dominios autorizados
 
@@ -61,7 +57,6 @@ El archivo debe ser el **CSV sin comprimir**. Si ya viene en gzip se rechaza con
 curl -X POST https://arb-a.servicios.care/api/upload \
   -H "X-Api-Key: $ARB_A_APIKEY" \
   -H "X-Correos: uno@servicios.care;dos@servicios.care" \
-  -H "X-Plazas: PLAZA1,PLAZA2" \
   -F "archivo=@ventas_marzo.csv;type=text/csv"
 ```
 
@@ -79,7 +74,6 @@ with open("ventas_marzo.csv", "rb") as fh:
         headers={
             "X-Api-Key": os.environ["ARB_A_APIKEY"],
             "X-Correos": "uno@servicios.care;dos@servicios.care",
-            "X-Plazas": "PLAZA1,PLAZA2",
         },
         files={"archivo": ("ventas_marzo.csv", fh, "text/csv")},
         timeout=180,
@@ -92,7 +86,8 @@ if respuesta.status_code != 201:
     print("falló:", datos["codigo"], datos["error"])
 else:
     print("link:", datos["link"])
-    print("vigente hasta:", datos["expira_en"])
+    print("link vigente hasta:", datos["link_expira_en"])
+    print("archivo disponible hasta:", datos["expira_en"])
     print("CSV:", datos["csv"]["lineas"], "líneas de", datos["csv"]["columnas"], "columnas")
 ```
 
@@ -110,6 +105,7 @@ else:
   "bytes_gz": 4399307,
   "sha256": "938b393a…5330",
   "expira_en": "2027-02-02T14:03:11+00:00",
+  "link_expira_en": "2027-01-03T14:03:11+00:00",
   "link": "https://arb-a.servicios.care/d/4f1c…9ab2",
   "csv": { "lineas": 812345, "columnas": 12, "separador": "," },
   "envios": { "ok": 2, "error": 0 }
@@ -123,7 +119,8 @@ else:
 | `bytes` | Tamaño del CSV original |
 | `bytes_gz` | Tamaño del `.gz` que se sirve en la descarga |
 | `sha256` | SHA-256 del **CSV original** (el que se subió, no el `.gz`) |
-| `expira_en` | Fecha en que dejan de funcionar el link y el archivo |
+| `expira_en` | Fecha en que el archivo deja de estar disponible (90 días) |
+| `link_expira_en` | Fecha en que el link del correo deja de funcionar (30 días). Después se entra por el portal con el usuario |
 | `link` | Link directo. Contiene el token: es un secreto, no se registra ni se comparte |
 | `csv` | Resumen de la validación: líneas de datos, columnas y separador detectado |
 | `envios` | Correos que salieron (`ok`) y que fallaron (`error`) |
@@ -185,12 +182,12 @@ como encabezado y cuenta para el total de `lineas`; las líneas en blanco no cue
 
 ## Notas de operación
 
-- **Vigencia:** 90 días para el archivo y el link. Después se responde `404` y el `.gz` se borra
-  del disco con la purga diaria.
+- **Vigencia:** el link del correo dura **30 días**; el archivo se conserva **90 días**. Pasados
+  los 30, `/d/<token>` responde `404` y solo se llega por el portal con el usuario. A los 90 el
+  `.gz` se borra del disco con la purga diaria.
 - **Descarga:** el link (`/d/<token>`) descarga sin login, como `application/gzip` con
   `Content-Disposition: attachment`. El `.gz` descomprimido es byte por byte el CSV subido:
   compárelo con `sha256`.
-- **Plazas:** informativas. No filtran el acceso ni la descarga.
 - **Reintentos:** la operación **no es idempotente**. Reintentar una subida que ya devolvió
   `201` crea otro archivo y manda otros correos. Reintente solo si la respuesta fue de error.
 - **Tiempo:** una carga de 30 MB tarda unos segundos (validación + compresión). Use un timeout

@@ -10,7 +10,6 @@ require_once __DIR__ . '/errores.php';
  */
 
 const ARB_A_MAX_DESTINATARIOS = 50;
-const ARB_A_MAX_PLAZAS = 20;
 const ARB_A_MAX_COLUMNAS = 500;
 /** Tope de bytes que se leen por fila: acota la memoria ante una línea gigante o mal entrecomillada. */
 const ARB_A_MAX_LINEA = 1 << 20;
@@ -182,22 +181,4 @@ function parseDestinatarios(string $cabecera): array
     }
 
     return ['ok' => true, 'codigo' => null, 'correos' => $lista, 'error' => null];
-}
-
-/** `X-Plazas`: informativas. Se normalizan a MAYÚSCULAS y se deduplican. */
-function parsePlazas(string $cabecera): array
-{
-    $partes = preg_split('/[,;]+/', $cabecera) ?: [];
-    $plazas = [];
-
-    foreach ($partes as $parte) {
-        $plaza = mb_strtoupper(trim($parte));
-        $plaza = preg_replace('/[^A-Z0-9_-]+/', '', $plaza) ?? '';
-        if ($plaza === '') {
-            continue;
-        }
-        $plazas[mb_substr($plaza, 0, 40)] = true;
-    }
-
-    return array_slice(array_keys($plazas), 0, ARB_A_MAX_PLAZAS);
 }

@@ -26,8 +26,18 @@ $nombre = 'PRUEBAADMIN' . strtoupper($sufijo) . '.CSV';
 $correo = 'destino+' . $sufijo . '@comex.care';
 $sinAcceso = 'nadie+' . $sufijo . '@comex.care';
 
-$adminId = crearUsuario('admin+' . $sufijo . '@comex.care', 'clave-de-prueba-larga', 'Admin de prueba', 'admin');
+$adminLogin = 'A' . $sufijo;
+sincronizarUsuario([
+    'externo_id' => $adminLogin,
+    'correo' => 'admin+' . $sufijo . '@comex.care',
+    'nombre' => 'Admin de prueba',
+    'token_hash' => derivadoIpro($adminLogin, 'clave-de-prueba-larga'),
+    'activo' => true,
+]);
+$admin = usuarioPorLogin($adminLogin);
+$adminId = (int) ($admin['id'] ?? 0);
 ok($adminId > 0, 'alta del administrador de prueba');
+marcarNivel($adminLogin, 'admin');
 
 $dir = rtrim((string) config()['archivos']['dir'], '/');
 if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
@@ -42,8 +52,8 @@ chmod($ruta, 0600);
 
 $pdo = bd();
 $pdo->prepare(
-    "insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, token_hash, plazas, expira_en)
-     values (:n, :r, :b, :g, :s, :t, array['PLAZA1', 'PLAZA2'], now() + interval '30 days')
+    "insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, token_hash, expira_en, link_expira_en)
+     values (:n, :r, :b, :g, :s, :t, now() + interval '30 days', now() + interval '30 days')
      returning id"
 )->execute([
     'n' => $nombre,
@@ -107,8 +117,8 @@ ok($otraVez['borrados'] === 0, 'purga: no vuelve a borrar lo ya purgado');
 // Fichero ausente: se marca igual, para que el cron no lo reintente para siempre.
 $rutaFantasma = $dir . '/fantasma-' . $sufijo . '.csv.gz';
 $pdo->prepare(
-    "insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, token_hash, expira_en)
-     values (:n, :r, 10, 5, :s, :t, now() + interval '10 days')"
+    "insert into archivo (nombre, ruta, bytes, bytes_gz, sha256, token_hash, expira_en, link_expira_en)
+     values (:n, :r, 10, 5, :s, :t, now() + interval '10 days', now() + interval '10 days')"
 )->execute([
     'n' => $nombre . '.FANTASMA',
     'r' => $rutaFantasma,

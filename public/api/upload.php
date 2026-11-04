@@ -7,7 +7,6 @@ declare(strict_types=1);
  * Cabeceras:
  *   X-Api-Key   obligatoria
  *   X-Correos   obligatoria, lista separada por comas
- *   X-Plazas    opcional, informativa (PLAZA1,PLAZA2)
  *
  * Cuerpo: multipart/form-data con el campo `archivo`.
  * Respuesta: JSON con `codigo` estable en los errores, y `exit`.
@@ -73,7 +72,6 @@ try {
     $resultado = guardarSubida(
         $archivo,
         $destinatarios['correos'],
-        parsePlazas((string) ($_SERVER['HTTP_X_PLAZAS'] ?? '')),
         ipCliente()
     );
 } catch (ErrorDeCarga $e) {

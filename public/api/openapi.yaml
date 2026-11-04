@@ -44,15 +44,6 @@ paths:
           schema:
             type: string
           example: uno@servicios.care;dos@servicios.care
-        - name: X-Plazas
-          in: header
-          required: false
-          description: |
-            Agrupador informativo (máximo 20). Se normaliza a MAYÚSCULAS con `A-Z`, `0-9`,
-            `_` y `-`. **Nunca restringe el acceso.**
-          schema:
-            type: string
-          example: PLAZA1,PLAZA2
       requestBody:
         required: true
         content:
@@ -114,7 +105,7 @@ components:
   schemas:
     CargaCreada:
       type: object
-      required: [ok, id, nombre, bytes, bytes_gz, sha256, expira_en, link, csv, envios]
+      required: [ok, id, nombre, bytes, bytes_gz, sha256, expira_en, link_expira_en, link, csv, envios]
       properties:
         ok:
           type: boolean
@@ -141,6 +132,11 @@ components:
         expira_en:
           type: string
           format: date-time
+          description: Vigencia del archivo (90 días).
+        link_expira_en:
+          type: string
+          format: date-time
+          description: Vigencia del link del correo (30 días); después solo se llega por el portal.
         link:
           type: string
           format: uri

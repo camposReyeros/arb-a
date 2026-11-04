@@ -6,26 +6,6 @@ declare(strict_types=1);
  * HTML mínimo, sin dependencias ni estilos en línea (la CSP solo permite archivos propios).
  */
 
-/** `{PLAZA1,PLAZA2}` de Postgres → lista limpia. */
-function plazasDe(mixed $valor): array
-{
-    if (!is_string($valor) || $valor === '') {
-        return [];
-    }
-
-    $limpio = trim($valor, '{}');
-    if ($limpio === '') {
-        return [];
-    }
-
-    $plazas = array_map(
-        static fn (string $p): string => trim($p, '"'),
-        explode(',', $limpio)
-    );
-
-    return array_values(array_filter($plazas, static fn (string $p): bool => $p !== ''));
-}
-
 function fechaVisible(string $marca): string
 {
     try {

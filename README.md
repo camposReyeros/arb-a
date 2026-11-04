@@ -8,16 +8,16 @@ Dominio: **arb-a.servicios.care**
 
 ## Qué hace
 
-1. `POST /api/upload` con `X-Api-Key`, `X-Correos` (lista separada por comas) y opcional
-   `X-Plazas` → guarda el CSV comprimido en gzip y responde con el link.
-2. Se envía a cada destinatario un correo con el link directo `/d/<token>`.
-3. La UI con login (correo + clave, sesión propia) lista los archivos del usuario y registra
-   cada acceso.
+1. `POST /api/upload` con `X-Api-Key` y `X-Correos` (lista separada por comas) → guarda el CSV
+   comprimido en gzip y responde con el link.
+2. Se envía a cada destinatario un correo con el link directo `/d/<token>`, vigente 30 días.
+3. La UI con login (usuario y contraseña de ipro) lista los archivos del usuario y registra
+   cada acceso. El archivo se conserva 90 días; después de los 30 del link, solo se llega aquí.
 4. Panel de administración: purga de archivos, salud de SMTP y estadísticas de uso
    (UI vs link directo).
 
-La **plaza** es informativa: nunca restringe. El permiso de ver un archivo es por coincidencia
-de correo, porque hay usuarios que apoyan otras plazas.
+El permiso de ver un archivo es por **coincidencia de correo** con los destinatarios, no por
+plaza ni por sucursal: hay usuarios que apoyan otras plazas.
 
 ## Requisitos
 
