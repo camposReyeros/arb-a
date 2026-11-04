@@ -16,8 +16,8 @@ Dominio: **arb-a.servicios.care**
 4. Panel de administración: purga de archivos, salud de SMTP y estadísticas de uso
    (UI vs link directo).
 
-El permiso de ver un archivo es por **coincidencia de correo** con los destinatarios, no por
-plaza ni por sucursal: hay usuarios que apoyan otras plazas.
+El permiso de ver un archivo es por **coincidencia de correo** con los destinatarios. No hay
+filtro por plaza ni por sucursal.
 
 ## Requisitos
 
@@ -36,11 +36,20 @@ plaza ni por sucursal: hay usuarios que apoyan otras plazas.
 | `docker/app/` | Imagen `php:8.5-fpm-alpine` + `pdo_pgsql`. |
 | `compose.yml` | `app-arb-a` + `db-arb-a`. |
 | `bin/limpiar.php` | Purga de archivos vencidos (cron). |
+| `bin/sincronizar_usuarios.php` | Copia credenciales desde ipro (cron); nunca toca el nivel. |
+| `bin/marcar_admin.php` | Marca `lector`/`admin` a un usuario ya sincronizado. |
+| `docs/api/upload.md` | Referencia de la API de carga (también servida en `/api/`). |
 
 ## Configuración
 
 Copiar `.env.example` a `.env` (modo 600) y `config.example.php` a `config.php`.
 Las credenciales **solo** por variables de entorno; `config.php` no se commitea.
+
+## API-Key
+
+Es **una sola**, solo para subir archivos y se genera en `/admin.php` → *API-Key de carga*.
+Se muestra una vez y se guarda como `sha256`; al regenerarla, la anterior deja de funcionar
+de inmediato. Mientras no exista en la base, se usa `ARB_A_APIKEY` del entorno.
 
 ## Documentación interna
 
