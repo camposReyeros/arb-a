@@ -20,32 +20,54 @@ $vencidos = $pdo->query(
 
 $borrados = 0;
 $fallos = 0;
+$dirBase = realpath((string) config()['archivos']['dir']);
+$marcar = $pdo->prepare('update archivo set borrado_en = now() where id = :id');
 
 foreach ($vencidos as $archivo) {
+    $id = (int) $archivo['id'];
     $ruta = (string) $archivo['ruta'];
-    $dir = realpath((string) config()['archivos']['dir']);
     $real = $ruta !== '' ? realpath($ruta) : false;
 
-    // Solo se borra dentro del directorio de archivos: nunca una ruta de fuera.
-    if ($dir === false || $real === false || !str_starts_with($real, $dir . DIRECTORY_SEPARATOR)) {
+    if ($dirBase === false) {
         $fallos++;
-        error_log('arb-a: ruta fuera del directorio de archivos, no se borra (archivo ' . $archivo['id'] . ')');
+        error_log('arb-a: el directorio de archivos no existe, no se purga (archivo ' . $id . ')');
+        continue;
+    }
+
+    if ($real === false) {
+        // El .gz ya no está. Si la ruta declarada apunta dentro del directorio, la fila queda
+        // marcada (si no, se reintentaría y se registraría el fallo todos los días).
+        if ($ruta !== '' && str_starts_with($ruta, $dirBase . DIRECTORY_SEPARATOR)) {
+            $marcar->execute(['id' => $id]);
+            $borrados++;
+            continue;
+        }
+
+        $fallos++;
+        error_log('arb-a: ruta fuera del directorio de archivos, no se borra (archivo ' . $id . ')');
+        continue;
+    }
+
+    // Solo se borra dentro del directorio de archivos: nunca una ruta de fuera.
+    if (!str_starts_with($real, $dirBase . DIRECTORY_SEPARATOR)) {
+        $fallos++;
+        error_log('arb-a: ruta fuera del directorio de archivos, no se borra (archivo ' . $id . ')');
         continue;
     }
 
     if (is_file($real) && !@unlink($real)) {
         $fallos++;
-        error_log('arb-a: no se pudo borrar ' . $real . ' (archivo ' . $archivo['id'] . ')');
+        error_log('arb-a: no se pudo borrar ' . $real . ' (archivo ' . $id . ')');
         continue;
     }
 
-    $pdo->prepare('update archivo set borrado_en = now() where id = :id')
-        ->execute(['id' => (int) $archivo['id']]);
+    $marcar->execute(['id' => $id]);
     $borrados++;
 }
 
 // El throttle y los eventos viejos no crecen sin límite.
 $pdo->exec("delete from intento_login where ultimo < now() - interval '7 days'");
+$pdo->exec("delete from limite_carga where creado_en < now() - interval '1 hour'");
 $pdo->prepare('delete from evento_acceso where creado_en < now() - make_interval(days => :d)')
     ->execute(['d' => $diasEventos]);
 

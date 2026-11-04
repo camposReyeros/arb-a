@@ -1,0 +1,208 @@
+openapi: 3.1.0
+info:
+  title: ARB-A · API de carga
+  version: 1.0.0
+  description: |
+    Carga un CSV, lo comprime y envía por correo un link directo a los destinatarios
+    indicados. El link y el archivo viven 90 días.
+
+    Los errores traen un `codigo` estable: el cliente compara ese campo, no el texto.
+  contact:
+    name: Soporte ARB-A
+    email: noreply-arb-a@servicios.care
+servers:
+  - url: https://arb-a.servicios.care
+    description: Producción
+security:
+  - ApiKey: []
+paths:
+  /api/upload:
+    post:
+      operationId: subirCsv
+      summary: Sube un CSV y avisa por correo a los destinatarios
+      description: |
+        El cuerpo es `multipart/form-data` con un solo campo, `archivo`, que debe ser el CSV
+        sin comprimir. El servidor valida el contenido (texto, columnas consistentes) y lo
+        comprime en gzip.
+
+        La operación **no es idempotente**: un segundo envío del mismo CSV crea otro archivo
+        y manda otros correos.
+      parameters:
+        - name: X-Api-Key
+          in: header
+          required: true
+          description: Clave del servicio. Se compara en tiempo constante.
+          schema:
+            type: string
+        - name: X-Correos
+          in: header
+          required: true
+          description: |
+            Destinatarios del link, separados por coma o punto y coma. Se normalizan a
+            minúsculas y se deduplican. Máximo 50. Es también la regla de acceso del portal:
+            un usuario ve el archivo si su correo está aquí.
+          schema:
+            type: string
+          example: uno@servicios.care;dos@servicios.care
+        - name: X-Plazas
+          in: header
+          required: false
+          description: |
+            Agrupador informativo (máximo 20). Se normaliza a MAYÚSCULAS con `A-Z`, `0-9`,
+            `_` y `-`. **Nunca restringe el acceso.**
+          schema:
+            type: string
+          example: PLAZA1,PLAZA2
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [archivo]
+              properties:
+                archivo:
+                  type: string
+                  format: binary
+                  description: CSV sin comprimir. Máximo 64 MB por defecto (configurable).
+      responses:
+        "201":
+          description: Archivo guardado y link emitido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CargaCreada"
+        "401":
+          $ref: "#/components/responses/Error"
+        "405":
+          $ref: "#/components/responses/Error"
+        "413":
+          $ref: "#/components/responses/Error"
+        "422":
+          $ref: "#/components/responses/Error"
+        "429":
+          description: |
+            Más de 100 cargas aceptadas desde la misma IP en una hora. Incluye la cabecera
+            `Retry-After` con los segundos que faltan para que la ventana se libere.
+          headers:
+            Retry-After:
+              description: Segundos de espera antes de reintentar
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+  responses:
+    Error:
+      description: Error de validación o de servicio
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    CargaCreada:
+      type: object
+      required: [ok, id, nombre, bytes, bytes_gz, sha256, expira_en, link, csv, envios]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        id:
+          type: integer
+          format: int64
+        nombre:
+          type: string
+          description: Nombre visible, en MAYÚSCULAS y con extensión `.CSV`
+          examples: [VENTAS_MARZO.CSV]
+        bytes:
+          type: integer
+          format: int64
+          description: Tamaño del CSV original
+        bytes_gz:
+          type: integer
+          format: int64
+          description: Tamaño del `.gz` que se sirve en la descarga
+        sha256:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: SHA-256 del CSV original (no del `.gz`)
+        expira_en:
+          type: string
+          format: date-time
+        link:
+          type: string
+          format: uri
+          description: Link directo con token. Es un secreto.
+        csv:
+          $ref: "#/components/schemas/CsvResumen"
+        envios:
+          $ref: "#/components/schemas/Envios"
+        aviso:
+          type: string
+          description: Solo aparece cuando `envios.ok` es 0
+    CsvResumen:
+      type: object
+      required: [lineas, columnas, separador]
+      properties:
+        lineas:
+          type: integer
+          description: Líneas con datos (la primera es el encabezado)
+        columnas:
+          type: integer
+        separador:
+          type: string
+          enum: [",", ";", "\t", "|"]
+    Envios:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: integer
+          description: Correos entregados
+        error:
+          type: integer
+          description: Correos que no salieron
+    Error:
+      type: object
+      required: [ok, codigo, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        codigo:
+          type: string
+          enum:
+            - metodo_no_permitido
+            - servicio_no_disponible
+            - apikey_invalida
+            - destinatarios_invalidos
+            - falta_archivo
+            - archivo_vacio
+            - archivo_muy_grande
+            - archivo_incompleto
+            - limite_cargas
+            - csv_ilegible
+            - csv_ya_comprimido
+            - csv_binario
+            - csv_vacio
+            - csv_columnas_inconsistentes
+            - csv_demasiadas_columnas
+            - error_interno
+        error:
+          type: string
+          description: Mensaje legible; puede cambiar entre versiones
+        reintentar_en:
+          type: integer
+          description: Segundos de espera (solo en `limite_cargas`)

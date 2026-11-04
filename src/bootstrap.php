@@ -106,11 +106,38 @@ function ipCliente(): ?string
 
     // X-Forwarded-For solo se cree a un proxy de confianza (Caddy), nunca a cualquiera.
     if ($ip !== '' && in_array($ip, $proxies, true)) {
-        $primera = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))[0]);
-        if (filter_var($primera, FILTER_VALIDATE_IP) !== false) {
-            return $primera;
+        // Se toma el último salto: es el que añadió nuestro proxy. El primero lo puede
+        // fijar el cliente, así que no sirve para el rate limit.
+        $saltos = array_values(array_filter(array_map('trim', explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '')))));
+        $real = $saltos !== [] ? $saltos[count($saltos) - 1] : '';
+        if (filter_var($real, FILTER_VALIDATE_IP) !== false) {
+            return $real;
         }
     }
 
     return filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : null;
+}
+
+/** Convierte un valor de php.ini ("64M", "1G", "512K", "1.5M") a bytes; 0 si es ilegible. */
+function bytesDeIni(string $valor): int
+{
+    $valor = trim($valor);
+    if ($valor === '') {
+        return 0;
+    }
+
+    if (preg_match('/^(\d+(?:\.\d+)?)\s*([kmg])?b?$/i', $valor, $m) !== 1) {
+        return 0;
+    }
+
+    // Se redondea hacia arriba: declarar menos bytes de los reales abriría un hueco en la validación.
+    $numero = (float) $m[1];
+    $factor = (int) match (strtolower($m[2] ?? '')) {
+        'g' => 1024 ** 3,
+        'm' => 1024 ** 2,
+        'k' => 1024,
+        default => 1,
+    };
+
+    return (int) ceil($numero * $factor);
 }

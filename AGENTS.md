@@ -20,7 +20,12 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 | `src/auth.php` | Login correo + clave (`password_hash`), niveles, throttle. |
 | `src/archivos.php` | Subida, compresión gzip en streaming, token, consultas por correo, purga. |
 | `src/correo.php` | SMTP y registro en `envio` (salud del panel). |
-| `src/csv.php` | Validación y normalización del CSV (nombre en MAYÚSCULAS, codificación). |
+| `src/csv.php` | Validación del CSV en una pasada (`fgetcsv`), nombre en MAYÚSCULAS, cabeceras `X-Correos`/`X-Plazas`. |
+| `src/errores.php` | Catálogo `codigo → [status, mensaje]` de la API. Es el contrato con el cliente. |
+| `src/limite.php` | Límite de cargas por IP: ventana móvil de una hora sobre `limite_carga`. |
+| `public/api/index.php` | Documentación viva en `/api`; la tabla de errores sale de `src/errores.php`. |
+| `public/api/openapi.yaml` | Contrato OpenAPI 3.1, servido tal cual. |
+| `docs/api/upload.md` | Documentación de referencia (estilo abuseipdb) para quien integra. |
 | `vistas/` | Fragmentos HTML. No se sirven directo. |
 | `db/schema.sql` | Esquema PostgreSQL idempotente. |
 | `db/migraciones/` | Cambios posteriores, numerados, aplicados a mano. |
@@ -41,6 +46,19 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   `borrado_en`. Archivo vencido no se descarga ni por link directo.
 - **Nombre visible en MAYÚSCULAS**, conservando el nombre original como base.
 - **La subida exige API-Key** (`X-Api-Key`); sin ella no se escribe nada.
+- **El CSV se valida antes de guardar:** no gzip, no binario, mismo número de columnas en
+  todas las líneas (RFC 4180), hasta 500 columnas. Se hace en una sola lectura con `fgetcsv`.
+  Cada fila se lee con tope de 1 MiB (`ARB_A_MAX_LINEA`) para acotar la memoria ante una línea
+  gigante o una comilla sin cerrar. El muestreo de binario revisa los primeros y los últimos
+  64 KB (riesgo aceptado: un polyglot con relleno de texto en ambos extremos se guarda igual,
+  pero se entrega como `application/gzip` + `attachment` + `nosniff`).
+- **Cada IP tiene 100 cargas aceptadas por hora** (ventana móvil, `limite_carga`). Se revisa
+  antes de trabajar (barato) y se vuelve a revisar **dentro de la transacción del guardado**,
+  con un lock por IP: dos peticiones simultáneas no pueden colarse contando a la vez. La cuota
+  se reserva en esa misma transacción, así que un archivo inválido no la consume.
+  Sin IP identificable no hay cuota (no se puede castigar a todos en la misma cubeta).
+- **Los errores de la API tienen `codigo` estable** (`src/errores.php`). El cliente compara
+  `codigo`; el mensaje puede cambiar. La documentación de `/api` se genera del mismo catálogo.
 - **Todo acceso se registra** en `evento_acceso` con `via`: `ui` o `directo`. Es la
   materia prima de las estadísticas del panel.
 
@@ -60,7 +78,7 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 
 - PostgreSQL 16, DSN `pgsql:`.
 - Tablas: `usuario`, `archivo`, `archivo_destinatario`, `evento_acceso`, `envio`,
-  `intento_login`, `bitacora` (append-only por trigger).
+  `intento_login`, `limite_carga`, `bitacora` (append-only por trigger).
 - El esquema se aplica solo al crear el volumen (`docker-entrypoint-initdb.d`).
 - Cambios posteriores: `db/migraciones/000X_*.sql` a mano.
 
@@ -74,14 +92,25 @@ Español de México. Identificadores técnicos en inglés; dominio en español
   **30 min de inactividad y 8 h de tope absoluto**.
 - Detrás de Caddy, la IP real y el HTTPS se toman de `X-Forwarded-For`/`X-Forwarded-Proto`
   **solo** si `REMOTE_ADDR` está en `ARB_A_PROXY_IPS`. Sin esa lista no se cree el header.
-- La purga solo borra rutas que caen dentro de `ARB_A_DIR` (validación con `realpath`).
+  De `X-Forwarded-For` se usa el **último** salto (el que añadió el proxy): el primero lo fija
+  el cliente y no sirve para el rate limit.
+- La purga solo borra rutas que caen dentro de `ARB_A_DIR` (validación con `realpath`). La
+  descarga hace la misma comprobación antes de servir.
+- La descarga responde **un solo 404** para token inválido, vencido y fichero ausente: sin oráculo.
+- Los correos no van al `error_log` en claro: se registra el `archivo_id` y un hash del destino.
 - CSP `default-src 'self'`, sin `unsafe-inline`. Los estilos y scripts son archivos propios.
 
 ## Gates antes de commit
 
 ```bash
 docker run --rm -v "$PWD":/app -w /app php:8.5-cli sh -c \
-  'find public src vistas bin -name "*.php" | while read f; do php -l "$f" >/dev/null || exit 1; done'
+  'find public src vistas bin tests tools -name "*.php" | while read f; do php -l "$f" >/dev/null || exit 1; done'
+```
+
+Pruebas puras (sin BD), corren en el mismo contenedor:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app php:8.5-cli php tests/csv_test.php
 ```
 
 El humo con BD (levantar `db-arb-a`, aplicar `db/schema.sql`, subir un CSV y descargarlo)

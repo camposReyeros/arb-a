@@ -87,6 +87,17 @@ create table if not exists intento_login (
     bloqueado_hasta  timestamptz
 );
 
+-- Límite de cargas por IP: ventana móvil de una hora sobre esta tabla.
+-- Se revisa antes de trabajar y se registra solo cuando la carga se guardó.
+create table if not exists limite_carga (
+    id          bigserial primary key,
+    ip          inet,
+    creado_en   timestamptz not null default now()
+);
+
+create index if not exists limite_carga_ip_fecha_idx on limite_carga (ip, creado_en desc);
+create index if not exists limite_carga_fecha_idx on limite_carga (creado_en desc);
+
 -- Bitácora administrativa append-only.
 create table if not exists bitacora (
     id          bigserial primary key,

@@ -16,6 +16,8 @@ return [
         'key' => getenv('ARB_A_APIKEY') ?: '',
         // Tope del CSV sin comprimir (30 MB reales; margen a 64 MB).
         'max_bytes' => (int) (getenv('ARB_A_MAX_BYTES') ?: 64 * 1024 * 1024),
+        // Cargas aceptadas por IP en una hora (ventana móvil). 0 = sin límite.
+        'max_cargas_hora' => (int) (getenv('ARB_A_MAX_CARGAS_HORA') ?: 100),
     ],
     'archivos' => [
         // Fuera del docroot: nunca se sirven por HTTP directo.
