@@ -48,9 +48,11 @@ Español de México. Identificadores técnicos en inglés; dominio en español
 
 ## Reglas del dominio
 
-- **El login es el de ipro:** `usuario` (`externo_id`) + la misma contraseña. Las credenciales
-  se sincronizan con `bin/sincronizar_usuarios.php`; `usuario.token_hash` guarda el derivado
-  `md5(últimos 5 + usuario + clave)`. El correo **no** sirve para iniciar sesión.
+- **El login es el de ipro:** la cadena que se teclea allá (p. ej. `JOSE_13010`) + la misma
+  contraseña. Las credenciales se sincronizan con `bin/sincronizar_usuarios.php`; `usuario.token_hash`
+  guarda el derivado `md5(últimos 5 + usuario + clave)`. El espejo solo trae el número, así que
+  `usuarioPorLogin()` cae a los últimos 5 caracteres cuando no hay coincidencia exacta; el hash
+  final exige el prefijo y el caso exactos. El correo **no** sirve para iniciar sesión.
 - **La regla de acceso es el correo:** un usuario ve un archivo si su correo está en
   `archivo_destinatario`. Se compara en minúsculas.
 - **El link directo es el token.** `/d/<token>` descarga sin login, con token aleatorio
@@ -207,6 +209,6 @@ BD solo quede el sha256 y que la bitácora registre el cambio. Restaura la fila 
 |---|---|
 | `archivo` | CSV subido, ya comprimido en gzip |
 | `destinatario` | correo al que se le envió el link; define qué ve en la UI |
-| `usuario` | `externo_id` de ipro; es el login y la contraseña es la misma de allá |
+| `usuario` | espejo de ipro: `externo_id` numérico + `token_hash`; se entra con el usuario de ipro (`JOSE_13010`) |
 | `token` | secreto del link directo `/d/<token>`; vence a los 30 días |
 | `via` | cómo se accedió: `ui` (con sesión) o `directo` (link) |

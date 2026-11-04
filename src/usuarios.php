@@ -29,10 +29,32 @@ function derivadoIpro(string $login, string $clave): string
     return md5(substr($login, -5) . $login . $clave);
 }
 
+/**
+ * Busca la fila por el usuario tecleado.
+ *
+ * ipro no guarda el prefijo del login: el `per_token` se calculó con la cadena
+ * completa (`JOSE_13010`) y en `usuario` solo quedó el número. Por eso, si no
+ * hay coincidencia exacta, se prueba con los últimos 5 caracteres, que por
+ * construcción son el `externo_id`. El hash se verifica después, así que la
+ * cadena completa (prefijo incluido, con su caso) sigue siendo obligatoria.
+ */
 function usuarioPorLogin(string $login): ?array
 {
+    $login = normalizarLogin($login);
     $stmt = bd()->prepare('select * from usuario where externo_id = :e');
-    $stmt->execute(['e' => normalizarLogin($login)]);
+    $stmt->execute(['e' => $login]);
+    $fila = $stmt->fetch();
+
+    if ($fila !== false) {
+        return $fila;
+    }
+
+    $sufijo = substr($login, -5);
+    if (strlen($login) <= 5 || !ctype_digit($sufijo)) {
+        return null;
+    }
+
+    $stmt->execute(['e' => $sufijo]);
     $fila = $stmt->fetch();
 
     return $fila !== false ? $fila : null;

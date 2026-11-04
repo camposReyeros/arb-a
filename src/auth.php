@@ -198,11 +198,15 @@ function loginLocal(string $login, string $clave): ?array
     }
 
     $ip = ipCliente() ?? '';
-    if (bloqueoLogin($login, $ip) > 0) {
+    $fila = usuarioPorLogin($login);
+
+    // El bucket va por el usuario real (no por la cadena tecleada): variar el
+    // prefijo no debe abrir un contador nuevo en cada intento.
+    $claveIntento = $fila !== null ? (string) $fila['externo_id'] : $login;
+    if (bloqueoLogin($claveIntento, $ip) > 0) {
         return null;
     }
 
-    $fila = usuarioPorLogin($login);
     $derivado = derivadoIpro($login, $clave);
 
     // Siempre se compara: sin fila se usa un hash imposible, sin oráculo por tiempo.
@@ -210,12 +214,12 @@ function loginLocal(string $login, string $clave): ?array
     $ok = hash_equals($esperado, $derivado) && $fila !== null && (bool) $fila['activo'];
 
     if (!$ok) {
-        registrarFalloLogin($login, $ip);
+        registrarFalloLogin($claveIntento, $ip);
 
         return null;
     }
 
-    limpiarFalloLogin($login, $ip);
+    limpiarFalloLogin($claveIntento, $ip);
     guardarSesion($fila);
 
     return $fila;

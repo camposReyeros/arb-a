@@ -72,4 +72,18 @@ ok(loginLocal('no-existe-jamas', $clave) === null, 'usuario inexistente niega');
 bd()->prepare('update usuario set activo = false where externo_id = :e')->execute(['e' => $login]);
 ok(loginLocal($login, $clave) === null, 'usuario inactivo niega');
 
+// Login con el prefijo de ipro (`JOSE_13010`): el espejo solo trae el número,
+// así que la fila se localiza por los últimos 5 y el hash confirma el prefijo.
+$id = '9' . str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+$prefijado = 'JOSE_' . $id;
+sincronizarUsuario([
+    'externo_id' => $id,
+    'correo' => 'prefijo+' . bin2hex(random_bytes(3)) . '@servicios.care',
+    'nombre' => 'Prefijo',
+    'token_hash' => derivadoIpro($prefijado, $clave),
+    'activo' => true,
+]);
+ok(loginLocal($prefijado, $clave) !== null, 'login con prefijo (JOSE_12345) entra');
+ok(loginLocal('OTRO_' . $id, $clave) === null, 'prefijo distinto no entra');
+
 exit($fallos === 0 ? 0 : 1);
