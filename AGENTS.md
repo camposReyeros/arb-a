@@ -165,12 +165,22 @@ depósito): salud, estadísticas, filtro "nunca abierto", purga con fichero y si
 
 ## Despliegue
 
-- **Dominio:** `arb-a.servicios.care` (Caddy del host hace TLS y `php_fastcgi app-arb-a:9000`).
-- **Raíz:** `/opt/arb-a` — `compose.yml`, `.env` (600), `app/` (copia), `db/`, `archivos/`,
-  `docker/app/Dockerfile`.
+- **Dominio:** `arb-a.servicios.care`, TLS en el contenedor `caddy` del proyecto `/opt/insumos`.
+- **Raíz:** `/opt/arb-a` — `compose.yml`, `.env` (600), `app/` (copia del repo),
+  `archivos/` (uid 82, modo 700), `docker/app/Dockerfile`.
 - **Contenedores:** `app-arb-a` (php:8.5-fpm-alpine + pdo_pgsql) y `db-arb-a`
-  (postgres:16-alpine), red `arb-a` + `redweb`.
-- **Cron:** `/etc/cron.d/arb-a` corre `bin/limpiar.php` a las 03:23.
+  (postgres:16-alpine), redes `arb-a` + `redweb`.
+- **Caddy:** bloque `arb-a.servicios.care` en `/opt/insumos/Caddyfile` (ver
+  `docs/despliegue/Caddyfile`). El código se monta además en el contenedor caddy
+  (`/opt/arb-a/app:/var/www/arb-a:ro`); sin ese montaje, `php_fastcgi` no resuelve el script.
+  La Caddyfile es bind de un solo archivo: editarla **en el mismo inodo** (`>>` o `cat >`),
+  nunca con `sed -i`.
+- **`ARB_A_PROXY_IPS`** = IP de caddy en `redweb`. Si caddy se recrea puede cambiar:
+  revisar, actualizar `.env` y recrear `app-arb-a`.
+- **SMTP:** `mail.servicios.care:465` (SSL implícito), cuenta `noreply-arb-a@servicios.care`.
+  El default del código (`smtp.servicios.care:587`) es solo eso, un default.
+- **Cron:** `/etc/cron.d/arb-a` corre a las 03:23
+  `docker exec app-arb-a php /var/www/arb-a/bin/limpiar.php >> /var/log/arb-a-cron.log 2>&1`.
 
 ## Deuda conocida
 

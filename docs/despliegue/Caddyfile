@@ -1,32 +1,37 @@
 # Caddy del host · arb-a.servicios.care
 #
-# La app corre en el contenedor `app-arb-a` (php-fpm en 9000) y el código está en
-# /opt/arb-a/app. Caddy termina TLS y le pasa la petición a PHP.
+# Caddy corre en el contenedor `caddy` (proyecto `/opt/insumos`) y termina TLS.
+# La app es `app-arb-a` (php-fpm en 9000). El código se monta DOS veces:
+#   - en el contenedor caddy:  /opt/arb-a/app -> /var/www/arb-a:ro
+#   - en el contenedor app:    /opt/arb-a/app -> /var/www/arb-a
+# Por eso el `root` de este bloque es la ruta DENTRO de caddy (/var/www/arb-a/public).
+#
+# Para agregar el montaje: editar /opt/insumos/compose.yml y
+#   docker compose -f /opt/insumos/compose.yml up -d --no-deps caddy
+# La Caddyfile está montada como bind de UN SOLO archivo: editarla en el mismo inodo
+# (append con `>>` o `cat >`), nunca con `sed -i` (rompe el montaje).
 #
 # Las dos reescrituras son obligatorias: sin ellas /api/upload y /d/<token> caen en
-# /index.php (comportamiento de try_files) y la API responde otra cosa.
+# /index.php y la API responde otra cosa.
 
 arb-a.servicios.care {
-	encode zstd gzip
-	root * /opt/arb-a/app/public
+	root * /var/www/arb-a/public
+	encode gzip
 
 	# POST /api/upload  ->  api/upload.php
 	@carga path /api/upload
 	rewrite @carga /api/upload.php
 
-	# GET /d/<token>  ->  d.php (el script lee el token del REQUEST_URI)
-	@descarga path /d/*
-	rewrite @descarga /d.php
+	# GET /d/<token>  ->  d.php?t=<token>
+	# El token va en la query: tras el rewrite, REQUEST_URI ya es /d.php.
+	@descarga path_regexp descarga ^/d/([a-f0-9]{64})/?$
+	rewrite @descarga /d.php?t={re.descarga.1}
 
 	php_fastcgi app-arb-a:9000
 	file_server
-
-	header {
-		-Server
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-	}
 }
 
 # La IP real del cliente llega por X-Forwarded-For; el contenedor solo la cree si su
-# REMOTE_ADDR está en ARB_A_PROXY_IPS. Ajustar a la IP del contenedor de Caddy en `redweb`:
-#   docker network inspect redweb --format '{{range .Containers}}{{.Name}} {{.IPv4Address}}{{end}}'
+# REMOTE_ADDR está en ARB_A_PROXY_IPS. Ese valor es la IP de caddy en la red `redweb`:
+#   docker inspect caddy --format '{{(index .NetworkSettings.Networks "redweb").IPAddress}}'
+# Si caddy se recrea puede cambiar: actualizar /opt/arb-a/.env y recrear app-arb-a.
