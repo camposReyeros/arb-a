@@ -46,15 +46,15 @@ body {
 /* Portal (login, mis archivos, admin solo conserva la tipografía del sistema). */
 body.portal {
   font-family: "Edu TAS Beginner", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 15px;
+  font-size: 18px;
 }
 body.portal h1,
 body.portal .marca {
   font-family: "Aguafina Script", "Edu TAS Beginner", cursive;
   font-weight: 400;
 }
-body.portal .marca { font-size: 26px; letter-spacing: .01em; }
-body.portal h1 { font-size: 30px; }
+body.portal .marca { font-size: 29px; letter-spacing: .01em; }
+body.portal h1 { font-size: 33px; }
 
 a { color: var(--primario); text-decoration: none; }
 a:hover { color: var(--primario-hover); }
